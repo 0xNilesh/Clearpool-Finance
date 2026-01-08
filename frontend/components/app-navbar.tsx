@@ -3,18 +3,40 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Search, Bell, User } from "lucide-react"
+import { Search, User, LogOut } from "lucide-react"
+import { useAccount, useDisconnect } from "wagmi"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useRouter, usePathname } from "next/navigation"
 
 interface AppNavbarProps {
-  activeTab: string
-  setActiveTab: (tab: string) => void
+  activeTab?: string
+  setActiveTab?: (tab: string) => void
 }
 
 export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
+  const pathname = usePathname()
+  const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
+  const router = useRouter()
+
+  const formatAddress = (addr: string | undefined) => {
+    if (!addr) return ""
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`
+  }
+
+  const handleSignOut = () => {
+    disconnect()
+    router.push("/")
+  }
   const tabs = [
     { id: "explore", label: "Explore" },
-    { id: "dashboard", label: "Dashboard" },
-    { id: "sips", label: "SIPs" },
+    { id: "portfolio", label: "Portfolio" },
     { id: "watchlist", label: "Watchlist" },
   ]
 
@@ -33,19 +55,24 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
           </Link>
 
           <div className="hidden md:flex gap-8">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`text-sm font-medium pb-2 border-b-2 transition ${
-                  activeTab === tab.id
-                    ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            {tabs.map((tab) => {
+              const isActive = pathname === "/app/portfolio" 
+                ? tab.id === "portfolio"
+                : pathname === "/app" && tab.id === "explore"
+              return (
+                <Link
+                  key={tab.id}
+                  href={tab.id === "portfolio" ? "/app/portfolio" : "/app"}
+                  className={`text-sm font-medium pb-2 border-b-2 transition ${
+                    isActive
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </Link>
+              )
+            })}
           </div>
 
           <div className="flex items-center gap-4 ml-auto">
@@ -57,12 +84,29 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
                 className="pl-10 pr-4 py-2 rounded-lg bg-card text-foreground placeholder-muted-foreground border border-border text-sm"
               />
             </div>
-            <Button size="icon" variant="ghost">
-              <Bell className="w-5 h-5" />
-            </Button>
-            <Button size="icon" variant="ghost">
-              <User className="w-5 h-5" />
-            </Button>
+            {isConnected && address && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2 border-border hover:bg-primary/10">
+                    <User className="w-4 h-4" />
+                    <span className="hidden sm:inline-block font-mono text-sm">
+                      {formatAddress(address)}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => router.push("/app/profile")}>
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
       </div>

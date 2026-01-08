@@ -1,7 +1,35 @@
+"use client"
+
 import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, ChevronRight } from "lucide-react"
+import MetricsMarquee from "@/components/ui/metrics-marquee"
+import { AuroraText } from "@/components/ui/aurora-text"
+import { AnimatedGradientText } from "@/components/ui/animated-gradient-text"
+import { cn } from "@/lib/utils"
+import { useConnectModal } from "@rainbow-me/rainbowkit"
+import { useAccount } from "wagmi"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 export default function Hero() {
+  const { openConnectModal } = useConnectModal()
+  const { isConnected } = useAccount()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (isConnected) {
+      router.push("/app")
+    }
+  }, [isConnected, router])
+
+  const handleGetStarted = () => {
+    if (isConnected) {
+      router.push("/app")
+    } else {
+      openConnectModal?.()
+    }
+  }
+
   return (
     <section className="relative overflow-hidden pt-32 pb-40">
       <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-primary/3">
@@ -10,14 +38,28 @@ export default function Hero() {
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center text-center gap-8 max-w-3xl mx-auto">
-          <div className="inline-block px-4 py-2 rounded-full bg-primary/10 border border-primary/30 backdrop-blur-sm">
-            <span className="text-sm font-semibold text-primary flex items-center gap-2">
-              ✨ Decentralized Investing Platform
-            </span>
+          <div className="group relative mx-auto flex items-center justify-center rounded-full px-4 py-1.5 shadow-[inset_0_-8px_10px_rgba(94,152,113,0.1)] transition-shadow duration-500 ease-out hover:shadow-[inset_0_-5px_10px_rgba(94,152,113,0.2)]">
+            <span
+              className={cn(
+                "animate-gradient absolute inset-0 block h-full w-full rounded-[inherit] bg-gradient-to-r from-primary/50 via-primary/30 to-primary/50 bg-[length:300%_100%] p-[1px]"
+              )}
+              style={{
+                WebkitMask:
+                  "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                WebkitMaskComposite: "destination-out",
+                mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                maskComposite: "subtract",
+                WebkitClipPath: "padding-box",
+              }}
+            />
+            🎉 <hr className="mx-2 h-4 w-px shrink-0 bg-primary/50" />
+            <AnimatedGradientText className="text-sm font-medium">
+              Clearpool now live on Mantle Testnet
+            </AnimatedGradientText>
           </div>
 
           <h1 className="text-5xl md:text-7xl font-bold text-foreground leading-[1.1] text-balance">
-            Invest in Institutional-Grade Strategies
+            Investing, <AuroraText>Reinvented</AuroraText>
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl leading-relaxed text-balance">
@@ -28,32 +70,28 @@ export default function Hero() {
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <Button
               size="lg"
+              onClick={handleGetStarted}
               className="bg-primary text-primary-foreground hover:bg-primary/90 text-base font-semibold group"
             >
-              Explore Vaults
+              Get Started
               <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
-            <Button size="lg" variant="outline" className="text-base font-semibold border-border bg-transparent">
+            <Button 
+              size="lg" 
+              variant="outline" 
+              className="text-base font-semibold border-border bg-transparent"
+              onClick={() => router.push("/docs")}
+            >
               Learn More
             </Button>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-8 pt-8 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span>$500M+ AUM</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span>50,000+ Users</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary" />
-              <span>Audited Smart Contracts</span>
-            </div>
+          <div className="w-full pt-8">
+            <MetricsMarquee />
           </div>
         </div>
       </div>
     </section>
   )
 }
+

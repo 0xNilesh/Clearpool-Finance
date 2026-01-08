@@ -5,6 +5,7 @@ import { BentoCard, BentoGrid } from "@/components/ui/bento-grid"
 import { cn } from "@/lib/utils"
 import AnimatedListDemo from "@/components/ui/animated-list-demo"
 import SecurityMarquee from "@/components/ui/security-marquee"
+import TransparencyTerminal from "@/components/ui/transparency-terminal"
 
 export default function Features() {
   const features = [
@@ -33,7 +34,13 @@ export default function Features() {
       name: "Transparent",
       description: "Full on-chain transparency with real-time reporting and complete audit trails.",
       cta: "Learn more",
-      background: <img className="absolute -top-20 -right-20 opacity-60" />,
+      background: (
+        <TransparencyTerminal className={cn(
+          "absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-[280px] scale-75",
+          "[mask-image:linear-gradient(to_top,transparent_10%,#000_100%)]",
+          "transition-all duration-300 ease-out group-hover:scale-90"
+        )} />
+      ),
       className: "lg:col-start-1 lg:col-end-2 lg:row-start-2 lg:row-end-4",
     },
     {

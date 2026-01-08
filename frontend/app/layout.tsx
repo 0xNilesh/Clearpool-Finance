@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Figtree, Geist_Mono } from "next/font/google"
 import { Instrument_Serif } from "next/font/google"
 import "./globals.css"
+import { WalletProvider } from "@/components/providers/wallet-provider"
 
 const figtree = Figtree({
   subsets: ["latin"],
@@ -53,7 +54,9 @@ html {
 }
         `}</style>
       </head>
-      <body className={`${figtree.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>{children}</body>
+      <body className={`${figtree.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
+        <WalletProvider>{children}</WalletProvider>
+      </body>
     </html>
   )
 }
