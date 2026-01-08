@@ -4,27 +4,38 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
-import { useAccount } from "wagmi"
+import { useAccount, useDisconnect } from "wagmi"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { User, LogOut } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 export default function Navbar() {
   const { openConnectModal } = useConnectModal()
-  const { isConnected } = useAccount()
+  const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
   const router = useRouter()
 
-  useEffect(() => {
-    if (isConnected) {
-      router.push("/app")
-    }
-  }, [isConnected, router])
+  const formatAddress = (addr: string | undefined) => {
+    if (!addr) return ""
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`
+  }
 
   const handleGetStarted = () => {
-    if (isConnected) {
-      router.push("/app")
-    } else {
-      openConnectModal?.()
-    }
+    router.push("/app")
+  }
+
+  const handleSignIn = () => {
+    openConnectModal?.()
+  }
+
+  const handleSignOut = () => {
+    disconnect()
   }
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
@@ -57,19 +68,45 @@ export default function Navbar() {
             </div>
           </div>
           <div className="flex gap-4">
-            <Button 
-              variant="outline" 
-              onClick={handleGetStarted}
-              className="border-border hover:bg-primary/10 bg-transparent"
-            >
-              Sign In
-            </Button>
-            <Button 
-              onClick={handleGetStarted}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-            >
-              Get Started
-            </Button>
+            {isConnected && address ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2 border-border hover:bg-primary/10">
+                    <User className="w-4 h-4" />
+                    <span className="hidden sm:inline-block font-mono text-sm">
+                      {formatAddress(address)}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => router.push("/app/profile")}>
+                    <User className="w-4 h-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={handleSignIn}
+                  className="border-border hover:bg-primary/10 bg-transparent"
+                >
+                  Sign In
+                </Button>
+                <Button 
+                  onClick={handleGetStarted}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

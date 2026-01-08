@@ -5,6 +5,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Search, User, LogOut } from "lucide-react"
 import { useAccount, useDisconnect } from "wagmi"
+import { useConnectModal } from "@rainbow-me/rainbowkit"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,7 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
   const pathname = usePathname()
   const { address, isConnected } = useAccount()
   const { disconnect } = useDisconnect()
+  const { openConnectModal } = useConnectModal()
   const router = useRouter()
 
   const formatAddress = (addr: string | undefined) => {
@@ -32,7 +34,6 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
 
   const handleSignOut = () => {
     disconnect()
-    router.push("/")
   }
   const tabs = [
     { id: "explore", label: "Explore" },
@@ -84,7 +85,7 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
                 className="pl-10 pr-4 py-2 rounded-lg bg-card text-foreground placeholder-muted-foreground border border-border text-sm"
               />
             </div>
-            {isConnected && address && (
+            {isConnected && address ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="flex items-center gap-2 border-border hover:bg-primary/10">
@@ -106,6 +107,14 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : (
+              <Button 
+                variant="outline" 
+                onClick={() => openConnectModal?.()}
+                className="border-border hover:bg-primary/10 bg-transparent"
+              >
+                Sign In
+              </Button>
             )}
           </div>
         </div>
