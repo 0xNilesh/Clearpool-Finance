@@ -31,6 +31,20 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     bool public governanceEnabled;
     uint256 public highWaterMark = 1e18;
 
+    struct WithdrawalRequest {
+        address owner;
+        uint256 sharesLocked;
+        uint256 requestTime;
+        bool fulfilled;
+    }
+
+    WithdrawalRequest[] public requests;
+
+    uint256 public constant FULFILL_TIMEOUT = 3 days; // adjustable via governance later
+
+    event WithdrawalRequested(uint256 indexed requestId, address indexed owner, uint256 sharesLocked);
+    event WithdrawalFulfilled(uint256 indexed requestId, address indexed owner, uint256 assetsPaid);
+
     event ModuleUpdated(string moduleName, address newModule);
     event AdapterExecuted(bytes32 indexed adapterId, uint256 inputValue, uint256 outputValue);
     event FeesHarvested(uint256 feeShares);
@@ -141,6 +155,90 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
             _mint(feeModule.feeRecipient(), feeShares);
             highWaterMark = currentPrice;
             emit FeesHarvested(feeShares);
+        }
+    }
+
+    function requestRedeem(uint256 shares) external nonReentrant whenNotPaused returns (uint256 requestId) {
+        require(shares > 0 && balanceOf(msg.sender) >= shares, "Insufficient shares");
+
+        // Lock shares by transferring to vault
+        _transfer(msg.sender, address(this), shares);
+
+        requestId = requests.length;
+        requests.push(WithdrawalRequest({
+            owner: msg.sender,
+            sharesLocked: shares,
+            requestTime: block.timestamp,
+            fulfilled: false
+        }));
+
+        emit WithdrawalRequested(requestId, msg.sender, shares);
+        return requestId;
+    }
+
+    function fulfillWithdrawal(uint256 requestId) external nonReentrant {
+        WithdrawalRequest storage req = requests[requestId];
+        require(!req.fulfilled, "Already fulfilled");
+
+        bool isCurator = hasRole(CURATOR_ROLE, msg.sender);
+        bool isTimedOut = block.timestamp >= req.requestTime + FULFILL_TIMEOUT;
+        require(isCurator || isTimedOut, "Not authorized yet");
+
+        // Calculate CURRENT owed amount at fulfillment time
+        uint256 owed = previewRedeem(req.sharesLocked);
+
+        require(baseAsset.balanceOf(address(this)) >= owed, "Insufficient liquidity");
+
+        // Burn the previously locked shares
+        _burn(address(this), req.sharesLocked);
+
+        req.fulfilled = true;
+        baseAsset.safeTransfer(req.owner, owed);
+
+        emit WithdrawalFulfilled(requestId, req.owner, owed);
+    }
+
+    // Batch version (same logic, looped)
+    function fulfillWithdrawals(uint256[] calldata requestIds) external nonReentrant {
+        bool isCurator = hasRole(CURATOR_ROLE, msg.sender);
+
+        uint256 totalOwed = 0;
+        for (uint256 i = 0; i < requestIds.length; i++) {
+            uint256 id = requestIds[i];
+            WithdrawalRequest storage req = requests[id];
+            require(!req.fulfilled, "Already fulfilled");
+
+            bool canFulfill = isCurator || (block.timestamp >= req.requestTime + FULFILL_TIMEOUT);
+            require(canFulfill, "Not authorized for this request");
+
+            totalOwed += previewRedeem(req.sharesLocked);
+        }
+
+        require(baseAsset.balanceOf(address(this)) >= totalOwed, "Insufficient liquidity");
+
+        for (uint256 i = 0; i < requestIds.length; i++) {
+            uint256 id = requestIds[i];
+            WithdrawalRequest storage req = requests[id];
+            uint256 owed = previewRedeem(req.sharesLocked);
+            _burn(address(this), req.sharesLocked);
+            req.fulfilled = true;
+            baseAsset.safeTransfer(req.owner, owed);
+            emit WithdrawalFulfilled(id, req.owner, owed);
+        }
+    }
+
+    // Optional: View pending requests (for UI/front-end)
+    function getPendingRequests() external view returns (WithdrawalRequest[] memory pending) {
+        // Simple implementation - in production use a better indexing
+        uint256 count = 0;
+        for (uint256 i = 0; i < requests.length; i++) {
+            if (!requests[i].fulfilled) count++;
+        }
+
+        pending = new WithdrawalRequest[](count);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < requests.length; i++) {
+            if (!requests[i].fulfilled) pending[idx++] = requests[i];
         }
     }
 

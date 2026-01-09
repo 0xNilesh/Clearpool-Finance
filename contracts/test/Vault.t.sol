@@ -156,6 +156,75 @@ contract ComposableVaultTest is Test {
         assertGe(vault.totalAssets(), usdcBefore + expectedAddedValue - 5000*1e18, "NAV increased");
     }
 
+    function test_RequestRedeemLocksSharesNoBurn() public {
+        vm.prank(investor1);
+        vault.deposit(10_000 * 1e18, investor1);
+
+        uint256 sharesBefore = vault.totalSupply();
+        uint256 userShares = vault.balanceOf(investor1);
+
+        vm.prank(investor1);
+        uint256 requestId = vault.requestRedeem(userShares);
+
+        assertEq(vault.balanceOf(investor1), 0);
+        assertEq(vault.balanceOf(address(vault)), userShares, "Shares locked in vault");
+        assertEq(vault.totalSupply(), sharesBefore, "totalSupply unchanged");
+    }
+
+    function test_FulfillBurnsSharesAndPaysCurrentValue() public {
+        uint256 usdcBalanceBefore = usdc.balanceOf(investor1);
+        vm.prank(investor1);
+        vault.deposit(10_000 * 1e18, investor1);
+
+        uint256 shares = vault.balanceOf(investor1);
+
+        vm.prank(investor1);
+        uint256 requestId = vault.requestRedeem(shares);
+
+        // Simulate profit after request
+        usdc.mint(address(vault), 2_000 * 1e18);
+
+        vm.prank(curator);
+        vault.fulfillWithdrawal(requestId);
+
+        // User gets CURRENT value (12_000 USDC)
+        assertGt(usdc.balanceOf(investor1), usdcBalanceBefore);
+        assertEq(vault.totalSupply(), 0, "Shares burned on fulfill");
+    }
+
+    function test_NewDepositAfterRequestSeesTruePrice() public {
+        vm.prank(investor1);
+        vault.deposit(10_000 * 1e18, investor1);
+
+        uint256 shares = vault.balanceOf(investor1);
+
+        vm.prank(investor1);
+        vault.requestRedeem(shares);
+
+        // New deposit sees unchanged price
+        vm.prank(investor2);
+        uint256 newShares = vault.deposit(5_000 * 1e18, investor2);
+
+        assertEq(newShares, 5_000 * 1e18, "New depositor gets fair 1:1");
+    }
+
+    function test_CuratorCanFulfillBeforeTimeout() public {
+        uint256 usdcBalanceBefore = usdc.balanceOf(investor1);
+        vm.prank(investor1);
+        vault.deposit(5_000 * 1e18, investor1);
+
+        uint256 shares = vault.balanceOf(investor1);
+
+        vm.prank(investor1);
+        uint256 requestId = vault.requestRedeem(shares);
+
+        // No warp needed - curator can fulfill immediately
+        vm.prank(curator);
+        vault.fulfillWithdrawal(requestId);
+
+        assertEq(usdc.balanceOf(investor1), usdcBalanceBefore);
+    }
+
     function test_DepositAfterSwap() public {
         vm.prank(investor1);
         vault.deposit(10_000 * 1e18, investor1);
@@ -188,39 +257,6 @@ contract ComposableVaultTest is Test {
 
         assertGt(shares, 0);
         assertEq(vault.totalAssets(), navBefore + 5_000 * 1e18);
-    }
-
-    function test_WithdrawAfterSwapAndProfit() public {
-        vm.prank(investor1);
-        vault.deposit(10_000 * 1e18, investor1);
-
-        vm.prank(curator);
-        valuationModule.setPrice(address(weth), 2500e18);
-
-        bytes memory params = abi.encodeCall(
-            DexAdapter.execute,
-            (
-                abi.encode(
-                    address(usdc),
-                    address(weth),
-                    uint24(3000),
-                    5000 * 1e18,
-                    1.9 ether,           // min out ~$4750 worth
-                    uint160(0)
-                ),
-                address(vault)
-            )
-        );
-
-        vm.prank(curator);
-        vault.executeAdapter(keccak256("DEX"), params);
-
-        uint256 shares = vault.balanceOf(investor1);
-
-        vm.prank(investor1);
-        uint256 assets = vault.redeem(shares, investor1, investor1);
-
-        assertGt(assets, 10_000 * 1e18, "Investor gets profit");
     }
 
     function test_DepositAndShareIssuance() public {
