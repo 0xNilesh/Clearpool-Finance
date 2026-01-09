@@ -9,7 +9,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {IExecutionEngine} from "../interfaces/IExecutionEngine.sol";
 import {IValuationModule} from "../interfaces/IValuationModule.sol";
 import {Errors} from "../libraries/Errors.sol";
 import {AdapterRegistry} from "../execution/AdapterRegistry.sol";
@@ -24,7 +23,6 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
 
     IERC20 public immutable baseAsset;
 
-    IExecutionEngine public executionEngine;
     AdapterRegistry public adapterRegistry;
     IValuationModule public valuationModule;
     PerformanceFeeModule public feeModule;
@@ -46,7 +44,6 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     }
 
     function initialize(
-        address _executionEngine,
         address _adapterRegistry,
         address _valuationModule,
         address _feeModule,
@@ -54,7 +51,6 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         bool _governanceEnabled,
         address _curator
     ) external onlyOwner {
-        executionEngine = IExecutionEngine(_executionEngine);
         adapterRegistry = AdapterRegistry(_adapterRegistry);
         valuationModule = IValuationModule(_valuationModule);
         feeModule = PerformanceFeeModule(_feeModule);
@@ -71,10 +67,14 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
 
     // Deposits
     function deposit(uint256 assets, address receiver) public override nonReentrant whenNotPaused returns (uint256 shares) {
-        baseAsset.safeTransferFrom(msg.sender, address(this), assets);
         shares = previewDeposit(assets);
+        require(shares > 0, "Zero shares");
+        // THEN transfer assets
+        baseAsset.safeTransferFrom(msg.sender, address(this), assets);
+        // Mint shares
         _mint(receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
+        return shares;
     }
 
     function mint(uint256 shares, address receiver) public override nonReentrant whenNotPaused returns (uint256 assets) {
@@ -82,6 +82,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         baseAsset.safeTransferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
         emit Deposit(msg.sender, receiver, assets, shares);
+        return assets;
     }
 
     // Withdrawals (Always-Exit)
@@ -101,6 +102,11 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         emit Withdraw(msg.sender, receiver, ownerAddr, assets, shares);
     }
 
+    function previewDeposit(uint256 assets) public view override returns (uint256) {
+        uint256 supply = totalSupply();
+        return supply == 0 ? assets : (assets * supply) / totalAssets();
+    }
+
     // Valuation via module
     function totalAssets() public view override returns (uint256) {
         return valuationModule.calculateNAV(address(this));
@@ -113,9 +119,13 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         if (!allowed) revert Errors.Unauthorized();
 
         address adapter = adapterRegistry.getAdapter(adapterId);
-        if (adapter == address(0)) revert Errors.AdapterNotRegistered();
+        if (adapter == address(0) ) revert Errors.AdapterNotRegistered();
 
-        uint256 outputValue = executionEngine.execute(adapter, params);
+        // Direct call to adapter.execute(params, address(this))
+        (bool success, bytes memory retData) = adapter.call(params);
+        if (!success) revert Errors.ExecutionFailed();
+
+        uint256 outputValue = abi.decode(retData, (uint256));
         emit AdapterExecuted(adapterId, totalAssets(), outputValue);
     }
 
@@ -137,12 +147,12 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     // Register adapter (curator)
     function registerAdapter(bytes32 adapterId, address adapter) external onlyRole(CURATOR_ROLE) {
         adapterRegistry.registerAdapter(adapterId, adapter);
+        baseAsset.approve(adapter, type(uint256).max);
     }
 
     // Module updates (owner/governance only)
     function updateModule(string calldata name, address newModule) external onlyOwner {
         if (newModule == address(0)) revert Errors.InvalidAddress();
-        if (keccak256(bytes(name)) == keccak256("ExecutionEngine")) executionEngine = IExecutionEngine(newModule);
         else if (keccak256(bytes(name)) == keccak256("AdapterRegistry")) adapterRegistry = AdapterRegistry(newModule);
         else if (keccak256(bytes(name)) == keccak256("ValuationModule")) valuationModule = IValuationModule(newModule);
         else if (keccak256(bytes(name)) == keccak256("FeeModule")) feeModule = PerformanceFeeModule(newModule);

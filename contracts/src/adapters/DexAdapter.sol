@@ -22,18 +22,30 @@ contract DexAdapter is Initializable, UUPSUpgradeable, OwnableUpgradeable, IAdap
     }
 
     function execute(bytes calldata params, address vault) external returns (uint256) {
-        (address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOutMin, bytes memory path) = abi.decode(params, (address, address, uint256, uint256, bytes));
-        if (!approvedTokens[tokenIn] || !approvedTokens[tokenOut]) revert Errors.InvalidToken();
+        (
+            address tokenIn,
+            address tokenOut,
+            uint24 fee,
+            uint256 amountIn,
+            uint256 amountOutMin,
+            uint160 sqrtPriceLimitX96
+        ) = abi.decode(params, (address, address, uint24, uint256, uint256, uint160));
 
-        IERC20(tokenIn).safeTransferFrom(vault, address(uniswapIntegration), amountIn);
-        uint256 amountOut = uniswapIntegration.swap(tokenIn, tokenOut, amountIn, amountOutMin, path, vault);
+        IERC20(tokenIn).safeTransferFrom(vault, address(this), amountIn);
+        IERC20(tokenIn).approve(address(uniswapIntegration), amountIn);
+
+        // Call the updated swap function
+        uint256 amountOut = uniswapIntegration.swap(
+            tokenIn,
+            tokenOut,
+            fee,
+            amountIn,
+            amountOutMin,
+            sqrtPriceLimitX96,
+            vault  // recipient = vault
+        );
+
         return amountOut;
-    }
-
-    // Curator adds approved tokens
-    function addApprovedToken(address token) external {
-        // Assume called by vault curator via delegatecall or separate auth
-        approvedTokens[token] = true;
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

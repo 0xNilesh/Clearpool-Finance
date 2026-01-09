@@ -5,7 +5,6 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {UUPSUpgradeable} from "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {AssetVault} from "./AssetVault.sol";
-import {ExecutionEngine} from "../execution/ExecutionEngine.sol";
 import {ValuationModule} from "../valuation/ValuationModule.sol";
 import {PerformanceFeeModule} from "../fees/PerformanceFeeModule.sol";
 import {GovernanceModule} from "../governance/GovernanceModule.sol";
@@ -30,10 +29,6 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         vault = address(new AssetVault{salt: salt}(baseAsset, name, symbol));
 
         // Deploy UUPS proxy modules
-        address execImpl = address(new ExecutionEngine());
-        address execProxy = address(new ERC1967Proxy(execImpl, ""));
-        ExecutionEngine(execProxy).initialize(vault);
-
         address regImpl = address(new AdapterRegistry());
         address regProxy = address(new ERC1967Proxy(regImpl, ""));
         AdapterRegistry(regProxy).initialize(vault);
@@ -51,7 +46,6 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
 
         AssetVault(vault).initialize(
-            execProxy,
             regProxy,
             valProxy,
             feeProxy,
