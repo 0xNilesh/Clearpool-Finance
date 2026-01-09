@@ -4,14 +4,15 @@ pragma solidity ^0.8.20;
 import {Errors} from "../libraries/Errors.sol";
 import {Initializable} from "@openzeppelin-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
-contract PerformanceFeeModule is Initializable, UUPSUpgradeable {
+contract PerformanceFeeModule is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 public constant PERFORMANCE_FEE_BPS = 2000; // 20%
     address public feeRecipient;
 
-    constructor(address _recipient) {
+     function initialize(address _vault, address _recipient) external initializer {
+        __Ownable_init(_vault);
         feeRecipient = _recipient;
-        _disableInitializers();
     }
 
     function calculatePerformanceFee(uint256 hwm, uint256 currentPrice, uint256 totalSupply) external pure returns (uint256) {

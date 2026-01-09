@@ -72,7 +72,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         governanceEnabled = _governanceEnabled;
         if (_governanceEnabled) {
             governanceModule = GovernanceModule(_governanceModule);
-            _transferOwnership(address(_governanceModule));
+            // _transferOwnership(address(_governanceModule));
         }
 
         _grantRole(CURATOR_ROLE, _curator);

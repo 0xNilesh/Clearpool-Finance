@@ -5,8 +5,9 @@ import {AssetVault} from "../core/AssetVault.sol";
 import {Errors} from "../libraries/Errors.sol";
 import {Initializable} from "@openzeppelin-upgradeable/contracts/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
-contract GovernanceModule is Initializable, UUPSUpgradeable {
+contract GovernanceModule is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     enum ProposalState { Pending, Active, Defeated, Succeeded }
     struct Proposal {
         uint256 id;
@@ -26,7 +27,8 @@ contract GovernanceModule is Initializable, UUPSUpgradeable {
     uint256 public constant VOTING_PERIOD = 3 days;
     uint256 public constant QUORUM = 40; // 40%
 
-    constructor(address _vault) {
+    function initialize(address _vault) external initializer {
+        __Ownable_init(_vault);
         vault = AssetVault(_vault);
     }
 

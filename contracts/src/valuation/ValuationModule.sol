@@ -3,14 +3,18 @@ pragma solidity ^0.8.20;
 
 import {IValuationModule} from "../interfaces/IValuationModule.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Initializable} from "@openzeppelin-upgradeable/contracts/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
-contract ValuationModule is IValuationModule {
+contract ValuationModule is IValuationModule, Initializable, OwnableUpgradeable, UUPSUpgradeable {
     mapping(address => uint256) public prices; // token => price in base (1e18)
     address[] public trackedTokens; // list of tokens to value (curator adds)
 
-    address public immutable baseAsset;
+    address public baseAsset;
 
-    constructor(address _baseAsset) {
+    function initialize(address _vault, address _baseAsset) external initializer {
+        __Ownable_init(_vault);
         baseAsset = _baseAsset;
         prices[_baseAsset] = 1e18;
         trackedTokens.push(_baseAsset);
@@ -64,4 +68,6 @@ contract ValuationModule is IValuationModule {
             trackedTokens.push(token);
         }
     }
+
+    function _authorizeUpgrade(address) internal override {}
 }

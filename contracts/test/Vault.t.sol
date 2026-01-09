@@ -12,6 +12,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IValuationModule} from "../src/interfaces/IValuationModule.sol";
 import {ValuationModule} from "../src/valuation/ValuationModule.sol";
+import {GovernanceModule} from "../src/governance/GovernanceModule.sol";
+import {Errors} from "../src/libraries/Errors.sol";
 
 contract MockSwapRouter {
     ValuationModule public valuationModule;
@@ -49,6 +51,7 @@ contract MockSwapRouter {
 contract ComposableVaultTest is Test {
     VaultFactory public factory;
     AssetVault public vault;
+    GovernanceModule public governance;
     UniswapV3Integration public uniswapIntegration;
     DexAdapter public dexAdapter;
     MockSwapRouter public mockRouter;
@@ -57,6 +60,7 @@ contract ComposableVaultTest is Test {
     address public curator = makeAddr("curator");
     address public investor1 = makeAddr("investor1");
     address public investor2 = makeAddr("investor2");
+    address public investor3 = makeAddr("investor3");
 
     ERC20Mock public usdc;
     ERC20Mock public weth;
@@ -64,14 +68,12 @@ contract ComposableVaultTest is Test {
     function setUp() public {
         factory = new VaultFactory();
 
-        // mockRouter = new MockSwapRouter();
-        // uniswapIntegration = new UniswapV3Integration(address(mockRouter));
-
         usdc = new ERC20Mock();
         weth = new ERC20Mock();
 
         usdc.mint(investor1, 100_000 * 1e18);
         usdc.mint(investor2, 100_000 * 1e18);
+        usdc.mint(investor3, 100_000 * 1e18);
         usdc.mint(curator, 10_000 * 1e18);
 
         bytes32 salt = keccak256("test-vault-1");
@@ -80,11 +82,12 @@ contract ComposableVaultTest is Test {
             address(usdc),
             "Composable USDC Vault",
             "cUSDC",
-            false,
+            true,
             curator
         );
 
         vault = AssetVault(vaultAddr);
+        governance = GovernanceModule(address(vault.governanceModule()));
 
         valuationModule = IValuationModule(vault.valuationModule());
 
@@ -101,6 +104,9 @@ contract ComposableVaultTest is Test {
         usdc.approve(address(vault), type(uint256).max);
 
         vm.prank(investor2);
+        usdc.approve(address(vault), type(uint256).max);
+
+        vm.prank(investor3);
         usdc.approve(address(vault), type(uint256).max);
     }
 
@@ -307,5 +313,196 @@ contract ComposableVaultTest is Test {
 
         vm.prank(investor1);
         vault.withdraw(250 * 1e18, investor1, investor1);
+    }
+
+    // --- Governance Module Tests ---
+
+    function test_CreateProposal() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        bytes32 adapterId = keccak256("DEX");
+        bytes memory params = abi.encode("dummy params");
+
+        vm.prank(investor1);
+        governance.createProposal(adapterId, params);
+
+        assertEq(governance.proposalCount(), 1);
+
+        (uint256 id, address proposer, bytes32 propAdapterId, bytes memory propParams, uint256 votesFor, uint256 votesAgainst, uint256 startTime, uint256 endTime, bool executed) = governance.proposals(1);
+
+        assertEq(id, 1);
+        assertEq(proposer, investor1);
+        assertEq(propAdapterId, adapterId);
+        assertEq(propParams, params);
+        assertEq(votesFor, 1000 * 1e18); // auto-vote yes
+        assertEq(votesAgainst, 0);
+        assertEq(endTime, startTime + 3 days);
+        assertFalse(executed);
+    }
+
+    function test_CreateProposalRevertsIfNoShares() public {
+        bytes32 adapterId = keccak256("DEX");
+        bytes memory params = abi.encode("dummy params");
+
+        vm.expectRevert(Errors.NoShares.selector);
+        vm.prank(makeAddr("noShares"));
+        governance.createProposal(adapterId, params);
+    }
+
+    function test_VoteOnProposal() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        vm.prank(investor2);
+        vault.deposit(2000 * 1e18, investor2);
+
+        vm.prank(investor1);
+        governance.createProposal(keccak256("DEX"), abi.encode("params"));
+
+        uint256 proposalId = 1;
+
+        vm.prank(investor2);
+        governance.vote(proposalId, true); // for
+
+        (, , , , uint256 votesFor, uint256 votesAgainst, , , ) = governance.proposals(proposalId);
+        assertEq(votesFor, 1000 * 1e18 + 2000 * 1e18);
+        assertEq(votesAgainst, 0);
+
+        vm.prank(investor2);
+        governance.vote(proposalId, false); // against
+
+        (, , , , votesFor, votesAgainst, , , ) = governance.proposals(proposalId);
+        assertEq(votesFor, 1000 * 1e18 + 2000 * 1e18);
+        assertEq(votesAgainst, 2000 * 1e18);
+    }
+
+    function test_VoteRevertsAfterEndTime() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        vm.prank(investor1);
+        governance.createProposal(keccak256("DEX"), abi.encode("params"));
+
+        vm.warp(block.timestamp + 4 days);
+
+        vm.expectRevert(Errors.VotingEnded.selector);
+        vm.prank(investor1);
+        governance.vote(1, true);
+    }
+
+    function test_IsApprovedSuccess() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        vm.prank(investor2);
+        vault.deposit(1500 * 1e18, investor2);
+
+        bytes32 adapterId = keccak256("DEX");
+        bytes memory params = abi.encode("params");
+
+        vm.prank(investor1);
+        governance.createProposal(adapterId, params);
+
+        vm.prank(investor2);
+        governance.vote(1, true); // votesFor = 1000 + 1500 = 2500 (100%)
+
+        vm.warp(block.timestamp + 4 days);
+
+        assertTrue(governance.isApproved(adapterId, params));
+    }
+
+    function test_IsApprovedFailureNoQuorum() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        vm.prank(investor2);
+        vault.deposit(5000 * 1e18, investor2);
+
+        bytes32 adapterId = keccak256("DEX");
+        bytes memory params = abi.encode("params");
+
+        vm.prank(investor1);
+        governance.createProposal(adapterId, params);
+
+        vm.prank(investor1);
+        governance.vote(1, true); // votesFor = 1000 (only 16.7% < 40%)
+
+        vm.warp(block.timestamp + 4 days);
+
+        assertFalse(governance.isApproved(adapterId, params));
+    }
+
+    function test_IsApprovedFailureVotesAgainstWin() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        vm.prank(investor2);
+        vault.deposit(2000 * 1e18, investor2);
+
+        bytes32 adapterId = keccak256("DEX");
+        bytes memory params = abi.encode("params");
+
+        vm.prank(investor1);
+        governance.createProposal(adapterId, params);
+
+        vm.prank(investor2);
+        governance.vote(1, false); // votesAgainst = 2000 > votesFor 1000
+
+        vm.warp(block.timestamp + 4 days);
+
+        assertFalse(governance.isApproved(adapterId, params));
+    }
+
+    function test_IsApprovedForDifferentProposal() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        vm.prank(investor1);
+        governance.createProposal(keccak256("DEX"), abi.encode("params1"));
+
+        vm.warp(block.timestamp + 4 days);
+
+        assertFalse(governance.isApproved(keccak256("DEX"), abi.encode("params2"))); // different params
+        assertTrue(governance.isApproved(keccak256("DEX"), abi.encode("params1"))); // same params
+    }
+
+    function test_ExecutionViaVaultRequiresApproval() public {
+        vm.prank(investor1);
+        vault.deposit(1000 * 1e18, investor1);
+
+        vm.prank(curator);
+        valuationModule.setPrice(address(weth), 2000e18);
+
+        bytes memory params = abi.encodeCall(
+            DexAdapter.execute,
+            (
+                abi.encode(
+                    address(usdc),
+                    address(weth),
+                    uint24(3000),
+                    500 * 1e18,
+                    0.19 ether,          
+                    uint160(0)
+                ),
+                address(vault)
+            )
+        );
+
+        bytes32 adapterId = keccak256("DEX");
+
+        vm.prank(investor1);
+        governance.createProposal(adapterId, params);
+
+        vm.warp(block.timestamp + 4 days);
+
+        // Non-curator (investor2) can execute if approved
+        vm.prank(investor2);
+        vault.executeAdapter(adapterId, params); // should succeed if approved
+
+        // Invalid params reverts
+        vm.prank(investor2);
+        vm.expectRevert("Unauthorized()");
+        vault.executeAdapter(adapterId, abi.encode("wrong params"));
     }
 }
