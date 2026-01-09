@@ -5,6 +5,7 @@ import {IAdapter} from "../interfaces/IAdapter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Errors} from "../libraries/Errors.sol";
+
 // Assume Aave-like on Mantle
 interface ILendingPool {
     function deposit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;

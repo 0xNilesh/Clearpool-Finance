@@ -22,10 +22,7 @@ contract MockSwapRouter {
         valuationModule = ValuationModule(_valuationModule);
     }
 
-    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params)
-        external
-        returns (uint256 amountOut)
-    {
+    function exactInputSingle(ISwapRouter.ExactInputSingleParams calldata params) external returns (uint256 amountOut) {
         // Transfer input
         IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
 
@@ -77,14 +74,7 @@ contract ComposableVaultTest is Test {
         usdc.mint(curator, 10_000 * 1e18);
 
         bytes32 salt = keccak256("test-vault-1");
-        address vaultAddr = factory.createVault(
-            salt,
-            address(usdc),
-            "Composable USDC Vault",
-            "cUSDC",
-            true,
-            curator
-        );
+        address vaultAddr = factory.createVault(salt, address(usdc), "Composable USDC Vault", "cUSDC", true, curator);
 
         vault = AssetVault(vaultAddr);
         governance = GovernanceModule(address(vault.governanceModule()));
@@ -146,7 +136,7 @@ contract ComposableVaultTest is Test {
                     address(weth),
                     uint24(3000),
                     5000 * 1e18,
-                    1.9 ether,           // min out ~$4750 worth
+                    1.9 ether, // min out ~$4750 worth
                     uint160(0)
                 ),
                 address(vault)
@@ -159,7 +149,7 @@ contract ComposableVaultTest is Test {
         uint256 wethReceived = weth.balanceOf(address(vault));
 
         uint256 expectedAddedValue = (wethReceived * 2500e18) / 1e18; // in USDC units
-        assertGe(vault.totalAssets(), usdcBefore + expectedAddedValue - 5000*1e18, "NAV increased");
+        assertGe(vault.totalAssets(), usdcBefore + expectedAddedValue - 5000 * 1e18, "NAV increased");
     }
 
     function test_RequestRedeemLocksSharesNoBurn() public {
@@ -246,7 +236,7 @@ contract ComposableVaultTest is Test {
                     address(weth),
                     uint24(3000),
                     5000 * 1e18,
-                    1.9 ether,           // min out ~$4750 worth
+                    1.9 ether, // min out ~$4750 worth
                     uint160(0)
                 ),
                 address(vault)
@@ -329,7 +319,17 @@ contract ComposableVaultTest is Test {
 
         assertEq(governance.proposalCount(), 1);
 
-        (uint256 id, address proposer, bytes32 propAdapterId, bytes memory propParams, uint256 votesFor, uint256 votesAgainst, uint256 startTime, uint256 endTime, bool executed) = governance.proposals(1);
+        (
+            uint256 id,
+            address proposer,
+            bytes32 propAdapterId,
+            bytes memory propParams,
+            uint256 votesFor,
+            uint256 votesAgainst,
+            uint256 startTime,
+            uint256 endTime,
+            bool executed
+        ) = governance.proposals(1);
 
         assertEq(id, 1);
         assertEq(proposer, investor1);
@@ -365,14 +365,14 @@ contract ComposableVaultTest is Test {
         vm.prank(investor2);
         governance.vote(proposalId, true); // for
 
-        (, , , , uint256 votesFor, uint256 votesAgainst, , , ) = governance.proposals(proposalId);
+        (,,,, uint256 votesFor, uint256 votesAgainst,,,) = governance.proposals(proposalId);
         assertEq(votesFor, 1000 * 1e18 + 2000 * 1e18);
         assertEq(votesAgainst, 0);
 
         vm.prank(investor2);
         governance.vote(proposalId, false); // against
 
-        (, , , , votesFor, votesAgainst, , , ) = governance.proposals(proposalId);
+        (,,,, votesFor, votesAgainst,,,) = governance.proposals(proposalId);
         assertEq(votesFor, 1000 * 1e18 + 2000 * 1e18);
         assertEq(votesAgainst, 2000 * 1e18);
     }
@@ -476,17 +476,7 @@ contract ComposableVaultTest is Test {
 
         bytes memory params = abi.encodeCall(
             DexAdapter.execute,
-            (
-                abi.encode(
-                    address(usdc),
-                    address(weth),
-                    uint24(3000),
-                    500 * 1e18,
-                    0.19 ether,          
-                    uint160(0)
-                ),
-                address(vault)
-            )
+            (abi.encode(address(usdc), address(weth), uint24(3000), 500 * 1e18, 0.19 ether, uint160(0)), address(vault))
         );
 
         bytes32 adapterId = keccak256("DEX");

@@ -49,11 +49,11 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     event AdapterExecuted(bytes32 indexed adapterId, uint256 inputValue, uint256 outputValue);
     event FeesHarvested(uint256 feeShares);
 
-    constructor(
-        address _baseAsset,
-        string memory _name,
-        string memory _symbol
-    ) ERC4626(IERC20(_baseAsset)) ERC20(_name, _symbol) Ownable(msg.sender) {
+    constructor(address _baseAsset, string memory _name, string memory _symbol)
+        ERC4626(IERC20(_baseAsset))
+        ERC20(_name, _symbol)
+        Ownable(msg.sender)
+    {
         baseAsset = IERC20(_baseAsset);
     }
 
@@ -80,7 +80,13 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     }
 
     // Deposits
-    function deposit(uint256 assets, address receiver) public override nonReentrant whenNotPaused returns (uint256 shares) {
+    function deposit(uint256 assets, address receiver)
+        public
+        override
+        nonReentrant
+        whenNotPaused
+        returns (uint256 shares)
+    {
         shares = previewDeposit(assets);
         require(shares > 0, "Zero shares");
         // THEN transfer assets
@@ -91,7 +97,13 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         return shares;
     }
 
-    function mint(uint256 shares, address receiver) public override nonReentrant whenNotPaused returns (uint256 assets) {
+    function mint(uint256 shares, address receiver)
+        public
+        override
+        nonReentrant
+        whenNotPaused
+        returns (uint256 assets)
+    {
         assets = previewMint(shares);
         baseAsset.safeTransferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
@@ -100,7 +112,12 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     }
 
     // Withdrawals (Always-Exit)
-    function withdraw(uint256 assets, address receiver, address ownerAddr) public override nonReentrant returns (uint256 shares) {
+    function withdraw(uint256 assets, address receiver, address ownerAddr)
+        public
+        override
+        nonReentrant
+        returns (uint256 shares)
+    {
         shares = previewWithdraw(assets);
         if (msg.sender != ownerAddr) _spendAllowance(ownerAddr, msg.sender, shares);
         _burn(ownerAddr, shares);
@@ -108,7 +125,12 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         emit Withdraw(msg.sender, receiver, ownerAddr, assets, shares);
     }
 
-    function redeem(uint256 shares, address receiver, address ownerAddr) public override nonReentrant returns (uint256 assets) {
+    function redeem(uint256 shares, address receiver, address ownerAddr)
+        public
+        override
+        nonReentrant
+        returns (uint256 assets)
+    {
         assets = previewRedeem(shares);
         if (msg.sender != ownerAddr) _spendAllowance(ownerAddr, msg.sender, shares);
         _burn(ownerAddr, shares);
@@ -128,12 +150,12 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
 
     // Adapter execution
     function executeAdapter(bytes32 adapterId, bytes calldata params) external nonReentrant whenNotPaused {
-        bool allowed = hasRole(CURATOR_ROLE, msg.sender) ||
-            (governanceEnabled && governanceModule.isApproved(adapterId, params));
+        bool allowed =
+            hasRole(CURATOR_ROLE, msg.sender) || (governanceEnabled && governanceModule.isApproved(adapterId, params));
         if (!allowed) revert Errors.Unauthorized();
 
         address adapter = adapterRegistry.getAdapter(adapterId);
-        if (adapter == address(0) ) revert Errors.AdapterNotRegistered();
+        if (adapter == address(0)) revert Errors.AdapterNotRegistered();
 
         // Direct call to adapter.execute(params, address(this))
         (bool success, bytes memory retData) = adapter.call(params);
@@ -145,8 +167,8 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
 
     // Harvest fees
     function harvestFees() external {
-        bool allowed = hasRole(CURATOR_ROLE, msg.sender) ||
-            (governanceEnabled && governanceModule.isApprovedForHarvest());
+        bool allowed =
+            hasRole(CURATOR_ROLE, msg.sender) || (governanceEnabled && governanceModule.isApprovedForHarvest());
         if (!allowed) revert Errors.Unauthorized();
 
         uint256 currentPrice = totalAssets() * 1e18 / totalSupply();
@@ -165,12 +187,9 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         _transfer(msg.sender, address(this), shares);
 
         requestId = requests.length;
-        requests.push(WithdrawalRequest({
-            owner: msg.sender,
-            sharesLocked: shares,
-            requestTime: block.timestamp,
-            fulfilled: false
-        }));
+        requests.push(
+            WithdrawalRequest({owner: msg.sender, sharesLocked: shares, requestTime: block.timestamp, fulfilled: false})
+        );
 
         emit WithdrawalRequested(requestId, msg.sender, shares);
         return requestId;

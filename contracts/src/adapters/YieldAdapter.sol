@@ -17,7 +17,8 @@ contract YieldAdapter is IAdapter {
     mapping(address => IYieldVault) public yieldVaults;
 
     function execute(bytes calldata params, address vault) external returns (uint256) {
-        (address yieldVaultAddr, bool isDeposit, address asset, uint256 amount) = abi.decode(params, (address, bool, address, uint256));
+        (address yieldVaultAddr, bool isDeposit, address asset, uint256 amount) =
+            abi.decode(params, (address, bool, address, uint256));
         IYieldVault yieldVault = yieldVaults[yieldVaultAddr];
         if (address(yieldVault) == address(0)) revert Errors.InvalidVault();
 

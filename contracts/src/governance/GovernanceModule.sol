@@ -8,7 +8,13 @@ import {UUPSUpgradeable} from "@openzeppelin-upgradeable/contracts/proxy/utils/U
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
 contract GovernanceModule is Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    enum ProposalState { Pending, Active, Defeated, Succeeded }
+    enum ProposalState {
+        Pending,
+        Active,
+        Defeated,
+        Succeeded
+    }
+
     struct Proposal {
         uint256 id;
         address proposer;

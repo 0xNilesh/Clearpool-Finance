@@ -10,12 +10,16 @@ contract PerformanceFeeModule is Initializable, OwnableUpgradeable, UUPSUpgradea
     uint256 public constant PERFORMANCE_FEE_BPS = 2000; // 20%
     address public feeRecipient;
 
-     function initialize(address _vault, address _recipient) external initializer {
+    function initialize(address _vault, address _recipient) external initializer {
         __Ownable_init(_vault);
         feeRecipient = _recipient;
     }
 
-    function calculatePerformanceFee(uint256 hwm, uint256 currentPrice, uint256 totalSupply) external pure returns (uint256) {
+    function calculatePerformanceFee(uint256 hwm, uint256 currentPrice, uint256 totalSupply)
+        external
+        pure
+        returns (uint256)
+    {
         if (currentPrice <= hwm) return 0;
         uint256 gain = currentPrice - hwm;
         uint256 fee = (gain * totalSupply * PERFORMANCE_FEE_BPS) / 10000 / currentPrice;

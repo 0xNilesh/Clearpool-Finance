@@ -16,7 +16,7 @@ contract DexAdapter is Initializable, UUPSUpgradeable, OwnableUpgradeable, IAdap
     UniswapV3Integration public uniswapIntegration;
     mapping(address => bool) public approvedTokens;
 
-     function initialize(address _uniswapRouter, address vault) external initializer {
+    function initialize(address _uniswapRouter, address vault) external initializer {
         __Ownable_init(vault);
         uniswapIntegration = new UniswapV3Integration(_uniswapRouter);
     }
@@ -42,7 +42,7 @@ contract DexAdapter is Initializable, UUPSUpgradeable, OwnableUpgradeable, IAdap
             amountIn,
             amountOutMin,
             sqrtPriceLimitX96,
-            vault  // recipient = vault
+            vault // recipient = vault
         );
 
         return amountOut;

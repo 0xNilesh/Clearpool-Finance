@@ -8,6 +8,7 @@ import {DexAdapter} from "../src/adapters/DexAdapter.sol";
 
 contract DeployComposableVaults is Script {
     address uniswapRouter = address(0);
+
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);

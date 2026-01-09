@@ -34,39 +34,23 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         AdapterRegistry(regProxy).initialize(vault);
 
         address valImpl = address(new ValuationModule());
-        bytes memory initDataValuation = abi.encodeWithSelector(
-                ValuationModule.initialize.selector,
-                address(vault),
-                address(baseAsset)
-            );
+        bytes memory initDataValuation =
+            abi.encodeWithSelector(ValuationModule.initialize.selector, address(vault), address(baseAsset));
         address valProxy = address(new ERC1967Proxy(valImpl, initDataValuation));
 
         address feeImpl = address(new PerformanceFeeModule());
-        bytes memory initDataFee = abi.encodeWithSelector(
-                ValuationModule.initialize.selector,
-                address(vault),
-                address(curator)
-            );
+        bytes memory initDataFee =
+            abi.encodeWithSelector(ValuationModule.initialize.selector, address(vault), address(curator));
         address feeProxy = address(new ERC1967Proxy(feeImpl, initDataFee));
 
         address govProxy = address(0);
         if (governanceEnabled) {
             address govImpl = address(new GovernanceModule());
-            bytes memory initDataGov = abi.encodeWithSelector(
-                GovernanceModule.initialize.selector,
-                address(vault)
-            );
+            bytes memory initDataGov = abi.encodeWithSelector(GovernanceModule.initialize.selector, address(vault));
             govProxy = address(new ERC1967Proxy(govImpl, initDataGov));
         }
 
-        AssetVault(vault).initialize(
-            regProxy,
-            valProxy,
-            feeProxy,
-            govProxy,
-            governanceEnabled,
-            curator
-        );
+        AssetVault(vault).initialize(regProxy, valProxy, feeProxy, govProxy, governanceEnabled, curator);
 
         AssetVault(vault).transferOwnership(msg.sender);
         emit VaultCreated(vault, baseAsset, curator);
