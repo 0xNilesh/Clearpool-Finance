@@ -1,27 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+// import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+// import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IValuationModule} from "../interfaces/IValuationModule.sol";
 import {Errors} from "../libraries/Errors.sol";
 import {AdapterRegistry} from "../execution/AdapterRegistry.sol";
 import {PerformanceFeeModule} from "../fees/PerformanceFeeModule.sol";
 import {GovernanceModule} from "../governance/GovernanceModule.sol";
+import {Initializable} from "@openzeppelin-upgradeable/contracts/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin-upgradeable/contracts/access/AccessControlUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/ERC20Upgradeable.sol";
+import {ERC4626Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
-contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuard {
+contract AssetVault is Initializable,
+    UUPSUpgradeable,
+    OwnableUpgradeable,
+    ERC20Upgradeable,
+    ERC4626Upgradeable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    bytes32 public constant CURATOR_ROLE = keccak256("CURATOR_ROLE");
-    bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
-
-    IERC20 public immutable baseAsset;
+    IERC20 public baseAsset;
+    address public curator;
 
     AdapterRegistry public adapterRegistry;
     IValuationModule public valuationModule;
@@ -49,34 +55,52 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     event AdapterExecuted(bytes32 indexed adapterId, uint256 inputValue, uint256 outputValue);
     event FeesHarvested(uint256 feeShares);
 
-    constructor(address _baseAsset, string memory _name, string memory _symbol)
-        ERC4626(IERC20(_baseAsset))
-        ERC20(_name, _symbol)
-        Ownable(msg.sender)
-    {
-        baseAsset = IERC20(_baseAsset);
+    modifier onlyCurator() {
+        require(msg.sender == curator, "Unauthorized");
+        _;
     }
 
+    /**
+     * @notice Initializes the vault proxy (called exactly once via proxy constructor data)
+     * @param _baseAsset base asset address
+     * @param _adapterRegistry Address of the adapter registry proxy
+     * @param _valuationModule Address of the valuation module proxy
+     * @param _feeModule Address of the performance fee module proxy
+     * @param _governanceModule Address of governance module proxy (can be address(0))
+     * @param _governanceEnabled Whether governance is active
+     * @param _curator Initial curator address (gets CURATOR_ROLE)
+     */
     function initialize(
+        address _baseAsset,
         address _adapterRegistry,
         address _valuationModule,
         address _feeModule,
         address _governanceModule,
         bool _governanceEnabled,
-        address _curator
-    ) external onlyOwner {
+        address _curator,
+        string memory _name,
+        string memory _symbol
+    ) public initializer {
+        // 1. Initialize parents in correct order
+        __ERC20_init(_name, _symbol);
+        __ERC4626_init(IERC20(_baseAsset)); // or pass baseAsset directly
+        baseAsset = IERC20(_baseAsset);
+
+        // 2. Set modules
         adapterRegistry = AdapterRegistry(_adapterRegistry);
         valuationModule = IValuationModule(_valuationModule);
         feeModule = PerformanceFeeModule(_feeModule);
 
         governanceEnabled = _governanceEnabled;
-        if (_governanceEnabled) {
+        if (_governanceEnabled && _governanceModule != address(0)) {
             governanceModule = GovernanceModule(_governanceModule);
-            // _transferOwnership(address(_governanceModule));
         }
 
-        _grantRole(CURATOR_ROLE, _curator);
-        _grantRole(EMERGENCY_ROLE, owner());
+        curator = _curator;
+    }
+
+    function decimals() public view override(ERC20Upgradeable, ERC4626Upgradeable) returns (uint8) {
+        return 18;
     }
 
     // Deposits
@@ -84,7 +108,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         public
         override
         nonReentrant
-        whenNotPaused
+        
         returns (uint256 shares)
     {
         shares = previewDeposit(assets);
@@ -101,7 +125,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         public
         override
         nonReentrant
-        whenNotPaused
+        
         returns (uint256 assets)
     {
         assets = previewMint(shares);
@@ -149,9 +173,9 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     }
 
     // Adapter execution
-    function executeAdapter(bytes32 adapterId, bytes calldata params) external nonReentrant whenNotPaused {
+    function executeAdapter(bytes32 adapterId, bytes calldata params) external nonReentrant {
         bool allowed =
-            hasRole(CURATOR_ROLE, msg.sender) || (governanceEnabled && governanceModule.isApproved(adapterId, params));
+            msg.sender == curator || (governanceEnabled && governanceModule.isApproved(adapterId, params));
         if (!allowed) revert Errors.Unauthorized();
 
         address adapter = adapterRegistry.getAdapter(adapterId);
@@ -168,7 +192,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     // Harvest fees
     function harvestFees() external {
         bool allowed =
-            hasRole(CURATOR_ROLE, msg.sender) || (governanceEnabled && governanceModule.isApprovedForHarvest());
+            msg.sender == curator || (governanceEnabled && governanceModule.isApprovedForHarvest());
         if (!allowed) revert Errors.Unauthorized();
 
         uint256 currentPrice = totalAssets() * 1e18 / totalSupply();
@@ -180,7 +204,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         }
     }
 
-    function requestRedeem(uint256 shares) external nonReentrant whenNotPaused returns (uint256 requestId) {
+    function requestRedeem(uint256 shares) external nonReentrant  returns (uint256 requestId) {
         require(shares > 0 && balanceOf(msg.sender) >= shares, "Insufficient shares");
 
         // Lock shares by transferring to vault
@@ -199,7 +223,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
         WithdrawalRequest storage req = requests[requestId];
         require(!req.fulfilled, "Already fulfilled");
 
-        bool isCurator = hasRole(CURATOR_ROLE, msg.sender);
+        bool isCurator = msg.sender == curator;
         bool isTimedOut = block.timestamp >= req.requestTime + FULFILL_TIMEOUT;
         require(isCurator || isTimedOut, "Not authorized yet");
 
@@ -219,7 +243,7 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
 
     // Batch version (same logic, looped)
     function fulfillWithdrawals(uint256[] calldata requestIds) external nonReentrant {
-        bool isCurator = hasRole(CURATOR_ROLE, msg.sender);
+        bool isCurator = msg.sender == curator;
 
         uint256 totalOwed = 0;
         for (uint256 i = 0; i < requestIds.length; i++) {
@@ -262,23 +286,21 @@ contract AssetVault is ERC4626, Ownable, Pausable, AccessControl, ReentrancyGuar
     }
 
     // Register adapter (curator)
-    function registerAdapter(bytes32 adapterId, address adapter) external onlyRole(CURATOR_ROLE) {
+    function registerAdapter(bytes32 adapterId, address adapter) external onlyCurator {
         adapterRegistry.registerAdapter(adapterId, adapter);
         baseAsset.approve(adapter, type(uint256).max);
     }
 
     // Module updates (owner/governance only)
-    function updateModule(string calldata name, address newModule) external onlyOwner {
+    function updateModule(string calldata _name, address newModule) external onlyOwner {
         if (newModule == address(0)) revert Errors.InvalidAddress();
-        else if (keccak256(bytes(name)) == keccak256("AdapterRegistry")) adapterRegistry = AdapterRegistry(newModule);
-        else if (keccak256(bytes(name)) == keccak256("ValuationModule")) valuationModule = IValuationModule(newModule);
-        else if (keccak256(bytes(name)) == keccak256("FeeModule")) feeModule = PerformanceFeeModule(newModule);
-        else if (keccak256(bytes(name)) == keccak256("GovernanceModule")) governanceModule = GovernanceModule(newModule);
+        else if (keccak256(bytes(_name)) == keccak256("AdapterRegistry")) adapterRegistry = AdapterRegistry(newModule);
+        else if (keccak256(bytes(_name)) == keccak256("ValuationModule")) valuationModule = IValuationModule(newModule);
+        else if (keccak256(bytes(_name)) == keccak256("FeeModule")) feeModule = PerformanceFeeModule(newModule);
+        else if (keccak256(bytes(_name)) == keccak256("GovernanceModule")) governanceModule = GovernanceModule(newModule);
         else revert Errors.InvalidModule();
-        emit ModuleUpdated(name, newModule);
+        emit ModuleUpdated(_name, newModule);
     }
 
-    function emergencyPause() external onlyRole(EMERGENCY_ROLE) {
-        _pause();
-    }
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

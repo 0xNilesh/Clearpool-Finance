@@ -11,9 +11,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import {IValuationModule} from "../src/interfaces/IValuationModule.sol";
+import {AdapterRegistry} from "../src/execution/AdapterRegistry.sol";
 import {ValuationModule} from "../src/valuation/ValuationModule.sol";
 import {GovernanceModule} from "../src/governance/GovernanceModule.sol";
 import {Errors} from "../src/libraries/Errors.sol";
+import {PerformanceFeeModule} from "../src/fees/PerformanceFeeModule.sol";
 
 contract MockSwapRouter {
     ValuationModule public valuationModule;
@@ -63,7 +65,16 @@ contract ComposableVaultTest is Test {
     ERC20Mock public weth;
 
     function setUp() public {
-        factory = new VaultFactory();
+        address assetVaultImpl      = address(new AssetVault());
+        address adapterRegistryImpl = address(new AdapterRegistry());
+        address valuationImpl       = address(new ValuationModule());
+        address feeImpl             = address(new PerformanceFeeModule());
+        address governanceImpl      = address(new GovernanceModule());
+        factory = new VaultFactory(adapterRegistryImpl,
+            valuationImpl,
+            feeImpl,
+            governanceImpl,
+            assetVaultImpl);
 
         usdc = new ERC20Mock();
         weth = new ERC20Mock();
@@ -101,7 +112,7 @@ contract ComposableVaultTest is Test {
 
     function test_VaultCreationAndCuratorRole() public {
         assertEq(address(vault.baseAsset()), address(usdc));
-        assertTrue(vault.hasRole(vault.CURATOR_ROLE(), curator));
+        assertEq(vault.curator(), curator);
         assertEq(vault.totalSupply(), 0);
         assertEq(vault.totalAssets(), 0);
     }
