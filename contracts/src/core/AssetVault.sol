@@ -19,11 +19,14 @@ import {ERC20Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/
 import {ERC4626Upgradeable} from "@openzeppelin-upgradeable/contracts/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin-upgradeable/contracts/utils/PausableUpgradeable.sol";
 
-contract AssetVault is Initializable,
+contract AssetVault is
+    Initializable,
     UUPSUpgradeable,
     OwnableUpgradeable,
     ERC20Upgradeable,
-    ERC4626Upgradeable, ReentrancyGuard {
+    ERC4626Upgradeable,
+    ReentrancyGuard
+{
     using SafeERC20 for IERC20;
 
     IERC20 public baseAsset;
@@ -104,13 +107,7 @@ contract AssetVault is Initializable,
     }
 
     // Deposits
-    function deposit(uint256 assets, address receiver)
-        public
-        override
-        nonReentrant
-        
-        returns (uint256 shares)
-    {
+    function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256 shares) {
         shares = previewDeposit(assets);
         require(shares > 0, "Zero shares");
         // THEN transfer assets
@@ -121,13 +118,7 @@ contract AssetVault is Initializable,
         return shares;
     }
 
-    function mint(uint256 shares, address receiver)
-        public
-        override
-        nonReentrant
-        
-        returns (uint256 assets)
-    {
+    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256 assets) {
         assets = previewMint(shares);
         baseAsset.safeTransferFrom(msg.sender, address(this), assets);
         _mint(receiver, shares);
@@ -174,8 +165,7 @@ contract AssetVault is Initializable,
 
     // Adapter execution
     function executeAdapter(bytes32 adapterId, bytes calldata params) external nonReentrant {
-        bool allowed =
-            msg.sender == curator || (governanceEnabled && governanceModule.isApproved(adapterId, params));
+        bool allowed = msg.sender == curator || (governanceEnabled && governanceModule.isApproved(adapterId, params));
         if (!allowed) revert Errors.Unauthorized();
 
         address adapter = adapterRegistry.getAdapter(adapterId);
@@ -191,8 +181,7 @@ contract AssetVault is Initializable,
 
     // Harvest fees
     function harvestFees() external {
-        bool allowed =
-            msg.sender == curator || (governanceEnabled && governanceModule.isApprovedForHarvest());
+        bool allowed = msg.sender == curator || (governanceEnabled && governanceModule.isApprovedForHarvest());
         if (!allowed) revert Errors.Unauthorized();
 
         uint256 currentPrice = totalAssets() * 1e18 / totalSupply();
@@ -204,7 +193,7 @@ contract AssetVault is Initializable,
         }
     }
 
-    function requestRedeem(uint256 shares) external nonReentrant  returns (uint256 requestId) {
+    function requestRedeem(uint256 shares) external nonReentrant returns (uint256 requestId) {
         require(shares > 0 && balanceOf(msg.sender) >= shares, "Insufficient shares");
 
         // Lock shares by transferring to vault
@@ -297,7 +286,9 @@ contract AssetVault is Initializable,
         else if (keccak256(bytes(_name)) == keccak256("AdapterRegistry")) adapterRegistry = AdapterRegistry(newModule);
         else if (keccak256(bytes(_name)) == keccak256("ValuationModule")) valuationModule = IValuationModule(newModule);
         else if (keccak256(bytes(_name)) == keccak256("FeeModule")) feeModule = PerformanceFeeModule(newModule);
-        else if (keccak256(bytes(_name)) == keccak256("GovernanceModule")) governanceModule = GovernanceModule(newModule);
+        else if (keccak256(bytes(_name)) == keccak256("GovernanceModule")) governanceModule = GovernanceModule(
+            newModule
+        );
         else revert Errors.InvalidModule();
         emit ModuleUpdated(_name, newModule);
     }

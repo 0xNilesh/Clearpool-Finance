@@ -20,9 +20,9 @@ contract DeployComposableVaults is Script {
 
     // Official addresses (verified Jan 2026)
     address constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
-    address constant USDC_MANTLE      = 0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc;
+    address constant USDC_MANTLE = 0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc;
 
-    string constant VAULT_NAME   = "Composable USDC Vault";
+    string constant VAULT_NAME = "Composable USDC Vault";
     string constant VAULT_SYMBOL = "cUSDC-V1";
 
     bool constant GOVERNANCE_ENABLED = true; // flip to true once GovernanceModule is production-ready
@@ -38,11 +38,11 @@ contract DeployComposableVaults is Script {
         console2.log("Deploying on Mantle (chainId %s) from %s", block.chainid, deployer);
 
         // ─── 1. Deploy all IMPLEMENTATIONS first ─────────────────────────────
-        address assetVaultImpl      = address(new AssetVault());
+        address assetVaultImpl = address(new AssetVault());
         address adapterRegistryImpl = address(new AdapterRegistry());
-        address valuationImpl       = address(new ValuationModule());
-        address feeImpl             = address(new PerformanceFeeModule());
-        address governanceImpl      = GOVERNANCE_ENABLED ? address(new GovernanceModule()) : address(0);
+        address valuationImpl = address(new ValuationModule());
+        address feeImpl = address(new PerformanceFeeModule());
+        address governanceImpl = GOVERNANCE_ENABLED ? address(new GovernanceModule()) : address(0);
 
         console2.log("Implementations deployed:");
         console2.log("  AssetVault:        %s", assetVaultImpl);
@@ -57,11 +57,13 @@ contract DeployComposableVaults is Script {
         VaultFactory factory = new VaultFactory();
 
         // If your VaultFactory needs a separate initialize call (most do)
-        factory.initialize(adapterRegistryImpl,
+        factory.initialize(
+            adapterRegistryImpl,
             valuationImpl,
             feeImpl,
-            governanceImpl,       // can be address(0) if governance not enabled
-            assetVaultImpl);   // comment out if constructor already inits everything
+            governanceImpl, // can be address(0) if governance not enabled
+            assetVaultImpl
+        ); // comment out if constructor already inits everything
 
         console2.log("VaultFactory deployed at: %s", address(factory));
 
@@ -72,13 +74,7 @@ contract DeployComposableVaults is Script {
         // ─── 4. Create the first vault ───────────────────────────────────────
         address curator = deployer; // or set to multisig/DAO later
 
-        address vault = factory.createVault(
-            USDC_MANTLE,
-            VAULT_NAME,
-            VAULT_SYMBOL,
-            GOVERNANCE_ENABLED,
-            curator
-        );
+        address vault = factory.createVault(USDC_MANTLE, VAULT_NAME, VAULT_SYMBOL, GOVERNANCE_ENABLED, curator);
 
         console2.log("VAULT CREATED! Address: %s", vault);
         console2.log("Base asset (USDC): %s", USDC_MANTLE);

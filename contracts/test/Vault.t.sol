@@ -65,16 +65,12 @@ contract ComposableVaultTest is Test {
     ERC20Mock public weth;
 
     function setUp() public {
-        address assetVaultImpl      = address(new AssetVault());
+        address assetVaultImpl = address(new AssetVault());
         address adapterRegistryImpl = address(new AdapterRegistry());
-        address valuationImpl       = address(new ValuationModule());
-        address feeImpl             = address(new PerformanceFeeModule());
-        address governanceImpl      = address(new GovernanceModule());
-        factory = new VaultFactory(adapterRegistryImpl,
-            valuationImpl,
-            feeImpl,
-            governanceImpl,
-            assetVaultImpl);
+        address valuationImpl = address(new ValuationModule());
+        address feeImpl = address(new PerformanceFeeModule());
+        address governanceImpl = address(new GovernanceModule());
+        factory = new VaultFactory(adapterRegistryImpl, valuationImpl, feeImpl, governanceImpl, assetVaultImpl);
 
         usdc = new ERC20Mock();
         weth = new ERC20Mock();

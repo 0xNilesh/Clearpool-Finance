@@ -57,11 +57,13 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error InvalidBaseAsset();
     error VaultDoesNotExist();
 
-    function initialize(address _adapterRegistryImpl,
+    function initialize(
+        address _adapterRegistryImpl,
         address _valuationImpl,
         address _feeImpl,
         address _governanceImpl,
-        address _assetVaultImpl) external initializer {
+        address _assetVaultImpl
+    ) external initializer {
         __Ownable_init(msg.sender);
 
         adapterRegistryImpl = _adapterRegistryImpl;
@@ -80,44 +82,46 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     ) external returns (address vault) {
         if (baseAsset == address(0)) revert InvalidBaseAsset();
 
-    uint256 vaultId = vaultCount;
-    bytes32 salt = keccak256(abi.encodePacked(msg.sender, vaultId, block.chainid));
+        uint256 vaultId = vaultCount;
+        bytes32 salt = keccak256(abi.encodePacked(msg.sender, vaultId, block.chainid));
 
-    // ─── STEP 1: Deploy ALL proxies UNINITIALIZED (empty calldata) ──────
-    address regProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(0)))}(
-        adapterRegistryImpl, ""
-    ));
+        // ─── STEP 1: Deploy ALL proxies UNINITIALIZED (empty calldata) ──────
+        address regProxy =
+            address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(0)))}(adapterRegistryImpl, ""));
 
-    address valProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(1)))}(
-        valuationImpl, ""
-    ));
+        address valProxy =
+            address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(1)))}(valuationImpl, ""));
 
-    address feeProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(2)))}(
-        feeImpl, ""
-    ));
+        address feeProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(2)))}(feeImpl, ""));
 
-    address govProxy = address(0);
-    if (governanceEnabled) {
-        govProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(3)))}(
-            governanceImpl, ""
-        ));
-    }
+        address govProxy = address(0);
+        if (governanceEnabled) {
+            govProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(3)))}(governanceImpl, ""));
+        }
 
-    // Deploy vault proxy LAST (now we have all addresses)
-    bytes memory vaultInitData = abi.encodeWithSelector(
-        AssetVault.initialize.selector,
-        baseAsset, regProxy, valProxy, feeProxy, govProxy, governanceEnabled, curator, name, symbol
-    );
-    vault = address(new ERC1967Proxy{salt: salt}(assetVaultImpl, vaultInitData));
+        // Deploy vault proxy LAST (now we have all addresses)
+        bytes memory vaultInitData = abi.encodeWithSelector(
+            AssetVault.initialize.selector,
+            baseAsset,
+            regProxy,
+            valProxy,
+            feeProxy,
+            govProxy,
+            governanceEnabled,
+            curator,
+            name,
+            symbol
+        );
+        vault = address(new ERC1967Proxy{salt: salt}(assetVaultImpl, vaultInitData));
 
-    // ─── STEP 2: POST-DEPLOY INITIALIZE modules with vault address ─────
-    AdapterRegistry(regProxy).initialize(vault);
-    ValuationModule(valProxy).initialize(vault, baseAsset);
-    PerformanceFeeModule(feeProxy).initialize(vault, curator);
-    
-    if (governanceEnabled) {
-        GovernanceModule(govProxy).initialize(vault);
-    }
+        // ─── STEP 2: POST-DEPLOY INITIALIZE modules with vault address ─────
+        AdapterRegistry(regProxy).initialize(vault);
+        ValuationModule(valProxy).initialize(vault, baseAsset);
+        PerformanceFeeModule(feeProxy).initialize(vault, curator);
+
+        if (governanceEnabled) {
+            GovernanceModule(govProxy).initialize(vault);
+        }
 
         vaultsById[vaultId] = vault;
         idOfVault[vault] = vaultId;
@@ -140,16 +144,7 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             ++vaultCount;
         }
 
-        emit VaultCreated(
-            vaultId,
-            vault,
-            msg.sender,
-            baseAsset,
-            curator,
-            governanceEnabled,
-            name,
-            symbol
-        );
+        emit VaultCreated(vaultId, vault, msg.sender, baseAsset, curator, governanceEnabled, name, symbol);
 
         return vault;
     }
