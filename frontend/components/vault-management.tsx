@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -19,6 +21,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogClose,
 } from "@/components/ui/dialog"
 import {
   Select,
@@ -27,22 +30,46 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Edit, Square, Eye, ChevronDown, ChevronUp, Plus } from "lucide-react"
+import { Edit, Square, Eye, ChevronDown, ChevronUp, Plus, Loader2 } from "lucide-react"
+import { useAllVaults } from "@/hooks/use-vaults"
+import { useWriteContract, useWaitForTransactionReceipt } from "wagmi"
+import { CONTRACTS, CONTRACT_ADDRESSES } from "@/lib/contracts"
+import { toast } from "sonner"
+import { useAccount } from "wagmi"
 
 export default function VaultManagement() {
   const [expandedVaults, setExpandedVaults] = useState<Set<number>>(new Set())
   const [rebalanceDialogOpen, setRebalanceDialogOpen] = useState(false)
   const [stopFundDialogOpen, setStopFundDialogOpen] = useState(false)
+  const [createVaultDialogOpen, setCreateVaultDialogOpen] = useState(false)
   const [selectedVaultId, setSelectedVaultId] = useState<number | null>(null)
   const [selectedToken, setSelectedToken] = useState<string>("")
   const [amount, setAmount] = useState<string>("")
 
-  const vaults = [
-    { id: 1, name: "Tech Growth Fund", aum: "$4.2M", issuedShares: "420,000", perf: "+18.5%" },
-    { id: 2, name: "Dividend Income", aum: "$3.8M", issuedShares: "380,000", perf: "+8.2%" },
-    { id: 3, name: "Crypto Emerging", aum: "$2.1M", issuedShares: "210,000", perf: "+45.3%" },
-    { id: 4, name: "Bond Portfolio", aum: "$1.9M", issuedShares: "190,000", perf: "+2.1%" },
-  ]
+  // Create vault form state
+  const [vaultName, setVaultName] = useState("")
+  const [vaultSymbol, setVaultSymbol] = useState("")
+  const [governanceEnabled, setGovernanceEnabled] = useState(false)
+  const { address: connectedAddress } = useAccount()
+
+  // Fetch vaults dynamically from contract
+  const { vaults, isLoading } = useAllVaults()
+
+  // Fixed base asset - USDC
+  const baseAsset = "0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc" // USDC address
+
+  // Write contract for creating vault
+  const {
+    data: hash,
+    writeContract,
+    isPending: isCreating,
+    error: createError,
+  } = useWriteContract()
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({
+      hash,
+    })
 
   // Mock fund tokens data
   const fundTokens = [
@@ -93,9 +120,52 @@ export default function VaultManagement() {
   }
 
   const handleCreateVault = () => {
-    // TODO: Implement create vault functionality
-    console.log("Create vault clicked")
+    setCreateVaultDialogOpen(true)
   }
+
+  const handleCreateVaultSubmit = async () => {
+    if (!vaultName || !vaultSymbol || !connectedAddress) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+
+    try {
+      writeContract({
+        address: CONTRACTS.VaultFactory.address as `0x${string}`,
+        abi: CONTRACTS.VaultFactory.abi,
+        functionName: "createVault",
+        args: [
+          baseAsset as `0x${string}`, // USDC address (fixed)
+          vaultName,
+          vaultSymbol,
+          governanceEnabled,
+          connectedAddress, // curator is the connected address
+        ],
+      })
+      toast.info("Transaction submitted. Waiting for confirmation...")
+    } catch (error: any) {
+      toast.error(`Failed to create vault: ${error?.message || "Unknown error"}`)
+    }
+  }
+
+  // Handle transaction success
+  useEffect(() => {
+    if (isConfirmed && createVaultDialogOpen) {
+      toast.success("Vault created successfully!")
+      setCreateVaultDialogOpen(false)
+      setVaultName("")
+      setVaultSymbol("")
+      setGovernanceEnabled(false)
+      // Vaults will automatically refresh on next render
+    }
+  }, [isConfirmed, createVaultDialogOpen])
+
+  // Handle transaction error
+  useEffect(() => {
+    if (createError && createVaultDialogOpen) {
+      toast.error(`Transaction failed: ${createError.message}`)
+    }
+  }, [createError, createVaultDialogOpen])
 
   const handleStopFund = (vaultId: number) => {
     setSelectedVaultId(vaultId)
@@ -121,8 +191,30 @@ export default function VaultManagement() {
           Create Vault
         </Button>
       </div>
-      <div className="space-y-4">
-        {vaults.map((vault) => {
+      
+      {isLoading ? (
+        <Card className="p-12">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Loading vaults...</p>
+          </div>
+        </Card>
+      ) : vaults.length === 0 ? (
+        <Card className="p-12">
+          <div className="flex flex-col items-center justify-center gap-4">
+            <p className="text-muted-foreground text-lg">No vaults found</p>
+            <Button 
+              onClick={handleCreateVault}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Your First Vault
+            </Button>
+          </div>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {vaults.map((vault) => {
           const isExpanded = expandedVaults.has(vault.id)
           return (
             <Card key={vault.id} className="p-6 overflow-hidden">
@@ -226,7 +318,8 @@ export default function VaultManagement() {
             </Card>
           )
         })}
-      </div>
+        </div>
+      )}
 
       <Dialog open={rebalanceDialogOpen} onOpenChange={setRebalanceDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -323,6 +416,122 @@ export default function VaultManagement() {
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               DONE
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={createVaultDialogOpen} onOpenChange={setCreateVaultDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Create New Vault</DialogTitle>
+            <DialogDescription>
+              Create a new vault with your preferred settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="vault-name">Vault Name *</Label>
+              <Input
+                id="vault-name"
+                placeholder="e.g., Tech Growth Fund"
+                value={vaultName}
+                onChange={(e) => setVaultName(e.target.value)}
+                disabled={isCreating || isConfirming}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vault-symbol">Vault Symbol *</Label>
+              <Input
+                id="vault-symbol"
+                placeholder="e.g., TGF"
+                value={vaultSymbol}
+                onChange={(e) => setVaultSymbol(e.target.value.toUpperCase())}
+                disabled={isCreating || isConfirming}
+                maxLength={10}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="base-asset">Base Asset</Label>
+              <Input
+                id="base-asset"
+                value="USDC"
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground font-mono break-all">
+                {baseAsset}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Base asset is fixed to USDC for all vaults
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="curator">Curator Address</Label>
+              <Input
+                id="curator"
+                value={connectedAddress || ""}
+                disabled
+                className="bg-muted"
+              />
+              <p className="text-xs text-muted-foreground">
+                Your connected wallet address will be set as the curator
+              </p>
+            </div>
+            <div className={`flex items-center justify-between space-x-2 rounded-md border-2 p-4 transition-colors ${
+              governanceEnabled 
+                ? 'border-primary bg-primary/10' 
+                : 'border-border bg-background'
+            }`}>
+              <div className="space-y-0.5">
+                <Label htmlFor="governance" className="text-base font-semibold">
+                  Enable Governance
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Allow token holders to vote on proposals
+                </p>
+              </div>
+              <Switch
+                id="governance"
+                checked={governanceEnabled}
+                onCheckedChange={setGovernanceEnabled}
+                disabled={isCreating || isConfirming}
+                className="data-[state=checked]:bg-primary"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCreateVaultDialogOpen(false)
+                setVaultName("")
+                setVaultSymbol("")
+                setGovernanceEnabled(false)
+              }}
+              disabled={isCreating || isConfirming}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateVaultSubmit}
+              disabled={
+                isCreating ||
+                isConfirming ||
+                !vaultName ||
+                !vaultSymbol ||
+                !connectedAddress
+              }
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {(isCreating || isConfirming) && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isCreating
+                ? "Creating..."
+                : isConfirming
+                ? "Confirming..."
+                : "Create Vault"}
             </Button>
           </DialogFooter>
         </DialogContent>

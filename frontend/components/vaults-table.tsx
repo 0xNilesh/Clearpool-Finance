@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import {
   Table,
@@ -13,55 +13,33 @@ import {
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Filter, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from "lucide-react"
+import { useAllVaults } from "@/hooks/use-vaults"
 
 interface Vault {
-  id: number
+  address: string
   name: string
-  category: string
-  rating: number
-  oneYearReturn: string
-  allTimeReturn: string
+  symbol: string
   aum: string
-  traderExperience: number
+  perf: string
+  issuedShares: string
 }
-
-const vaults: Vault[] = [
-  { id: 1, name: "Tech Growth Fund", category: "Equity", rating: 4.5, oneYearReturn: "+18.5%", allTimeReturn: "+45.2%", aum: "$4.2M", traderExperience: 8 },
-  { id: 2, name: "Dividend Income", category: "Income", rating: 4.2, oneYearReturn: "+8.2%", allTimeReturn: "+32.1%", aum: "$3.8M", traderExperience: 12 },
-  { id: 3, name: "Crypto Emerging", category: "Crypto", rating: 4.8, oneYearReturn: "+45.3%", allTimeReturn: "+120.5%", aum: "$2.1M", traderExperience: 5 },
-  { id: 4, name: "Bond Portfolio", category: "Fixed Income", rating: 3.9, oneYearReturn: "+2.1%", allTimeReturn: "+8.5%", aum: "$1.9M", traderExperience: 15 },
-  { id: 5, name: "Small Cap Value", category: "Equity", rating: 4.6, oneYearReturn: "+22.3%", allTimeReturn: "+58.7%", aum: "$5.1M", traderExperience: 10 },
-  { id: 6, name: "Real Estate Trust", category: "REIT", rating: 4.1, oneYearReturn: "+12.4%", allTimeReturn: "+28.9%", aum: "$3.2M", traderExperience: 7 },
-  { id: 7, name: "Commodity Futures", category: "Commodities", rating: 4.3, oneYearReturn: "+15.7%", allTimeReturn: "+42.3%", aum: "$2.8M", traderExperience: 9 },
-  { id: 8, name: "International Equity", category: "Equity", rating: 4.4, oneYearReturn: "+19.2%", allTimeReturn: "+51.6%", aum: "$4.5M", traderExperience: 11 },
-  { id: 9, name: "Balanced Growth", category: "Balanced", rating: 4.0, oneYearReturn: "+10.5%", allTimeReturn: "+35.2%", aum: "$6.2M", traderExperience: 14 },
-  { id: 10, name: "High Yield Bonds", category: "Fixed Income", rating: 3.8, oneYearReturn: "+5.3%", allTimeReturn: "+18.7%", aum: "$2.5M", traderExperience: 13 },
-  { id: 11, name: "Emerging Markets", category: "Equity", rating: 4.7, oneYearReturn: "+28.9%", allTimeReturn: "+67.4%", aum: "$3.9M", traderExperience: 6 },
-  { id: 12, name: "Healthcare Sector", category: "Sector", rating: 4.5, oneYearReturn: "+16.8%", allTimeReturn: "+48.3%", aum: "$4.8M", traderExperience: 8 },
-  { id: 13, name: "Energy Sector", category: "Sector", rating: 4.2, oneYearReturn: "+14.2%", allTimeReturn: "+39.6%", aum: "$3.4M", traderExperience: 7 },
-  { id: 14, name: "Technology Sector", category: "Sector", rating: 4.9, oneYearReturn: "+35.7%", allTimeReturn: "+89.2%", aum: "$7.1M", traderExperience: 9 },
-  { id: 15, name: "Global Diversified", category: "Multi-Asset", rating: 4.3, oneYearReturn: "+13.6%", allTimeReturn: "+41.8%", aum: "$5.5M", traderExperience: 12 },
-]
 
 type SortColumn = "rating" | "oneYearReturn" | "allTimeReturn" | "aum" | "traderExperience" | null
 type SortDirection = "asc" | "desc" | null
 
 export default function VaultsTable() {
   const router = useRouter()
+  const { vaults, isLoading } = useAllVaults()
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState({
+    name: "",
     aum: "",
-    traderExperience: "",
   })
   const [sortColumn, setSortColumn] = useState<SortColumn>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
 
-  // Helper functions to parse values for sorting
-  const parsePercentage = (value: string): number => {
-    return parseFloat(value.replace(/[+%]/g, "")) || 0
-  }
-
+  // Helper function to parse AUM for sorting
   const parseAUM = (value: string): number => {
     const numStr = value.replace(/[$,\s]/g, "").toLowerCase()
     if (numStr.endsWith("k")) {
@@ -74,54 +52,65 @@ export default function VaultsTable() {
     return parseFloat(numStr) || 0
   }
 
-  const filteredVaults = vaults.filter((vault) => {
-    if (filters.aum && !vault.aum.toLowerCase().includes(filters.aum.toLowerCase())) {
-      return false
-    }
-    if (filters.traderExperience && vault.traderExperience < parseInt(filters.traderExperience)) {
-      return false
-    }
-    return true
-  })
+  // Helper function to parse percentage for sorting
+  const parsePercentage = (value: string): number => {
+    return parseFloat(value.replace(/[+%]/g, "")) || 0
+  }
+
+  const filteredVaults = useMemo(() => {
+    return vaults.filter((vault) => {
+      if (filters.name && !vault.name.toLowerCase().includes(filters.name.toLowerCase())) {
+        return false
+      }
+      if (filters.aum && !vault.aum.toLowerCase().includes(filters.aum.toLowerCase())) {
+        return false
+      }
+      return true
+    })
+  }, [vaults, filters])
 
   // Sort function
-  const sortedVaults = [...filteredVaults].sort((a, b) => {
-    if (!sortColumn || !sortDirection) return 0
+  const sortedVaults = useMemo(() => {
+    if (!sortColumn || !sortDirection) return filteredVaults
 
-    let aValue: number
-    let bValue: number
+    return [...filteredVaults].sort((a, b) => {
+      let aValue: number
+      let bValue: number
 
-    switch (sortColumn) {
-      case "rating":
-        aValue = a.rating
-        bValue = b.rating
-        break
-      case "oneYearReturn":
-        aValue = parsePercentage(a.oneYearReturn)
-        bValue = parsePercentage(b.oneYearReturn)
-        break
-      case "allTimeReturn":
-        aValue = parsePercentage(a.allTimeReturn)
-        bValue = parsePercentage(b.allTimeReturn)
-        break
-      case "aum":
-        aValue = parseAUM(a.aum)
-        bValue = parseAUM(b.aum)
-        break
-      case "traderExperience":
-        aValue = a.traderExperience
-        bValue = b.traderExperience
-        break
-      default:
-        return 0
-    }
+      switch (sortColumn) {
+        case "rating":
+          // Mock rating - could be calculated from performance
+          aValue = 4.5
+          bValue = 4.5
+          break
+        case "oneYearReturn":
+          aValue = parsePercentage(a.perf)
+          bValue = parsePercentage(b.perf)
+          break
+        case "allTimeReturn":
+          aValue = parsePercentage(a.perf)
+          bValue = parsePercentage(b.perf)
+          break
+        case "aum":
+          aValue = parseAUM(a.aum)
+          bValue = parseAUM(b.aum)
+          break
+        case "traderExperience":
+          // Mock trader experience
+          aValue = 8
+          bValue = 8
+          break
+        default:
+          return 0
+      }
 
-    if (sortDirection === "asc") {
-      return aValue - bValue
-    } else {
-      return bValue - aValue
-    }
-  })
+      if (sortDirection === "asc") {
+        return aValue - bValue
+      } else {
+        return bValue - aValue
+      }
+    })
+  }, [filteredVaults, sortColumn, sortDirection])
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -152,12 +141,22 @@ export default function VaultsTable() {
   }
 
   const clearFilters = () => {
-    setFilters({ aum: "", traderExperience: "" })
+    setFilters({ name: "", aum: "" })
   }
 
-  const handleRowClick = (vaultId: number) => {
-    // Navigate to fund details page
-    router.push(`/app/fund/${vaultId}`)
+  // Helper to get category (could be based on vault name or other logic)
+  const getCategory = (vaultName: string): string => {
+    const name = vaultName.toLowerCase()
+    if (name.includes("crypto") || name.includes("btc") || name.includes("eth")) return "Crypto"
+    if (name.includes("bond") || name.includes("fixed")) return "Fixed Income"
+    if (name.includes("income") || name.includes("dividend")) return "Income"
+    if (name.includes("growth")) return "Equity"
+    return "Vault"
+  }
+
+  const handleRowClick = (vaultAddress: string) => {
+    // Navigate to fund details page using vault address
+    router.push(`/app/fund/${vaultAddress}`)
   }
 
   return (
@@ -192,6 +191,17 @@ export default function VaultsTable() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium text-foreground mb-2 block">
+                Vault Name
+              </label>
+              <Input
+                placeholder="Filter by name"
+                value={filters.name}
+                onChange={(e) => setFilters({ ...filters, name: e.target.value })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">
                 AUM
               </label>
               <Input
@@ -201,114 +211,114 @@ export default function VaultsTable() {
                 className="w-full"
               />
             </div>
-            <div>
-              <label className="text-sm font-medium text-foreground mb-2 block">
-                Trader Experience (Years)
-              </label>
-              <Input
-                type="number"
-                placeholder="Min years of experience"
-                value={filters.traderExperience}
-                onChange={(e) => setFilters({ ...filters, traderExperience: e.target.value })}
-                className="w-full"
-              />
-            </div>
           </div>
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="font-semibold text-base py-4">Name</TableHead>
-              <TableHead className="font-semibold text-base py-4">Category</TableHead>
-              <TableHead className="font-semibold text-base py-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSort("rating")
-                  }}
-                  className="flex items-center gap-2 hover:text-primary transition-colors"
-                >
-                  Rating
-                  {getSortIcon("rating")}
-                </button>
-              </TableHead>
-              <TableHead className="font-semibold text-base py-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSort("oneYearReturn")
-                  }}
-                  className="flex items-center gap-2 hover:text-primary transition-colors"
-                >
-                  1 Yr Return
-                  {getSortIcon("oneYearReturn")}
-                </button>
-              </TableHead>
-              <TableHead className="font-semibold text-base py-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSort("allTimeReturn")
-                  }}
-                  className="flex items-center gap-2 hover:text-primary transition-colors"
-                >
-                  All Time Returns
-                  {getSortIcon("allTimeReturn")}
-                </button>
-              </TableHead>
-              <TableHead className="font-semibold text-base py-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSort("aum")
-                  }}
-                  className="flex items-center gap-2 hover:text-primary transition-colors"
-                >
-                  AUM
-                  {getSortIcon("aum")}
-                </button>
-              </TableHead>
-              <TableHead className="font-semibold text-base py-4">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleSort("traderExperience")
-                  }}
-                  className="flex items-center gap-2 hover:text-primary transition-colors"
-                >
-                  Trader Experience
-                  {getSortIcon("traderExperience")}
-                </button>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedVaults.map((vault) => (
-              <TableRow 
-                key={vault.id} 
-                className="hover:bg-muted/50 cursor-pointer transition-colors"
-                onClick={() => handleRowClick(vault.id)}
-              >
-                <TableCell className="font-medium text-base py-4">{vault.name}</TableCell>
-                <TableCell className="text-base py-4">{vault.category}</TableCell>
-                <TableCell className="text-base py-4">
-                  <div className="flex items-center gap-1">
-                    <span>{vault.rating}</span>
-                    <span className="text-muted-foreground">/5.0</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-primary font-semibold text-base py-4">{vault.oneYearReturn}</TableCell>
-                <TableCell className="text-primary font-semibold text-base py-4">{vault.allTimeReturn}</TableCell>
-                <TableCell className="text-base py-4">{vault.aum}</TableCell>
-                <TableCell className="text-base py-4">{vault.traderExperience} years</TableCell>
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Loading vaults...</p>
+        </div>
+      ) : sortedVaults.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <p className="text-muted-foreground text-lg">No vaults found</p>
+        </div>
+      ) : (
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="font-semibold text-base py-4">Name</TableHead>
+                <TableHead className="font-semibold text-base py-4">Category</TableHead>
+                <TableHead className="font-semibold text-base py-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSort("rating")
+                    }}
+                    className="flex items-center gap-2 hover:text-primary transition-colors"
+                  >
+                    Rating
+                    {getSortIcon("rating")}
+                  </button>
+                </TableHead>
+                <TableHead className="font-semibold text-base py-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSort("oneYearReturn")
+                    }}
+                    className="flex items-center gap-2 hover:text-primary transition-colors"
+                  >
+                    1 Yr Return
+                    {getSortIcon("oneYearReturn")}
+                  </button>
+                </TableHead>
+                <TableHead className="font-semibold text-base py-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSort("allTimeReturn")
+                    }}
+                    className="flex items-center gap-2 hover:text-primary transition-colors"
+                  >
+                    All Time Returns
+                    {getSortIcon("allTimeReturn")}
+                  </button>
+                </TableHead>
+                <TableHead className="font-semibold text-base py-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSort("aum")
+                    }}
+                    className="flex items-center gap-2 hover:text-primary transition-colors"
+                  >
+                    AUM
+                    {getSortIcon("aum")}
+                  </button>
+                </TableHead>
+                <TableHead className="font-semibold text-base py-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleSort("traderExperience")
+                    }}
+                    className="flex items-center gap-2 hover:text-primary transition-colors"
+                  >
+                    Trader Experience
+                    {getSortIcon("traderExperience")}
+                  </button>
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {sortedVaults.map((vault) => (
+                <TableRow 
+                  key={vault.address} 
+                  className="hover:bg-muted/50 cursor-pointer transition-colors"
+                  onClick={() => handleRowClick(vault.address)}
+                >
+                  <TableCell className="font-medium text-base py-4">{vault.name}</TableCell>
+                  <TableCell className="text-base py-4">{getCategory(vault.name)}</TableCell>
+                  <TableCell className="text-base py-4">
+                    <div className="flex items-center gap-1">
+                      <span>4.5</span>
+                      <span className="text-muted-foreground">/5.0</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-primary font-semibold text-base py-4">{vault.perf}</TableCell>
+                  <TableCell className="text-primary font-semibold text-base py-4">{vault.perf}</TableCell>
+                  <TableCell className="text-base py-4">{vault.aum}</TableCell>
+                  <TableCell className="text-base py-4">8 years</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </Card>
   )
 }

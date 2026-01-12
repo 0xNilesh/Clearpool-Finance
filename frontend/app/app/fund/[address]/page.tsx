@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import AppNavbar from "@/components/app-navbar"
-import { useState } from "react"
+import { useState, useMemo } from "react"
+import { useAllVaults } from "@/hooks/use-vaults"
+import { Loader2 } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -23,28 +25,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-// Mock fund data - in real app, fetch based on ID
-const fundData = {
-  id: 1,
-  name: "Tech Growth Fund",
-  category: "Equity",
-  rating: 4.5,
-  oneYearReturn: "+18.5%",
-  allTimeReturn: "+45.2%",
-  aum: "$4.2M",
-  traderExperience: 8,
-  description: "A high-growth equity fund focused on technology companies with strong fundamentals and innovative products.",
+// Mock fund data - will be replaced with dynamic data
+const defaultFundData = {
+  name: "Loading...",
+  category: "N/A",
+  rating: 0,
+  oneYearReturn: "+0.0%",
+  allTimeReturn: "+0.0%",
+  aum: "$0.00M",
+  traderExperience: 0,
+  description: "Loading vault data...",
   minInvestment: "$100",
   fees: "2% management fee, 20% performance fee",
 }
-
-const similarFunds = [
-  { id: 2, name: "Dividend Income", category: "Income", return: "+8.2%", aum: "$3.8M" },
-  { id: 3, name: "Crypto Emerging", category: "Crypto", return: "+45.3%", aum: "$2.1M" },
-  { id: 5, name: "Small Cap Value", category: "Equity", return: "+22.3%", aum: "$5.1M" },
-  { id: 8, name: "International Equity", category: "Equity", return: "+19.2%", aum: "$4.5M" },
-  { id: 12, name: "Healthcare Sector", category: "Sector", return: "+16.8%", aum: "$4.8M" },
-]
 
 // Mock fund token holdings
 const fundTokens = [
@@ -73,8 +66,48 @@ const chartData = {
 export default function FundPage() {
   const params = useParams()
   const router = useRouter()
+  const vaultAddress = params.address as string
+  const { vaults, isLoading } = useAllVaults()
   const [duration, setDuration] = useState("1Y")
   const [amount, setAmount] = useState("")
+
+  // Find the current vault by address
+  const currentVault = useMemo(() => {
+    if (!vaultAddress || !vaults) return null
+    return vaults.find((v) => v.address.toLowerCase() === vaultAddress.toLowerCase())
+  }, [vaultAddress, vaults])
+
+  // Get similar vaults (other vaults excluding current)
+  const similarVaults = useMemo(() => {
+    if (!vaults || !currentVault) return []
+    return vaults
+      .filter((v) => v.address.toLowerCase() !== vaultAddress.toLowerCase())
+      .slice(0, 5)
+      .map((v) => ({
+        address: v.address,
+        name: v.name,
+        category: "Vault",
+        return: v.perf,
+        aum: v.aum,
+      }))
+  }, [vaults, currentVault, vaultAddress])
+
+  // Map vault data to fund data format
+  const fundData = useMemo(() => {
+    if (!currentVault) return defaultFundData
+    return {
+      name: currentVault.name,
+      category: "Vault",
+      rating: 4.5, // Mock rating
+      oneYearReturn: currentVault.perf,
+      allTimeReturn: currentVault.perf,
+      aum: currentVault.aum,
+      traderExperience: 0, // Mock
+      description: `A decentralized vault managed on-chain. Total assets under management: ${currentVault.aum}. Issued shares: ${currentVault.issuedShares}.`,
+      minInvestment: "$100",
+      fees: "2% management fee, 20% performance fee",
+    }
+  }, [currentVault])
 
   const data = chartData[duration as keyof typeof chartData] || chartData["1Y"]
   const maxValue = Math.max(...data)
@@ -83,6 +116,36 @@ export default function FundPage() {
   const handleProposeRebalance = () => {
     // TODO: Implement propose rebalance functionality
     console.log("Propose fund rebalance clicked")
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppNavbar />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Loading vault data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!currentVault) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppNavbar />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <p className="text-muted-foreground text-lg mb-4">Vault not found</p>
+            <Button onClick={() => router.push("/app")} variant="outline">
+              Back to Vaults
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -100,7 +163,12 @@ export default function FundPage() {
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="text-2xl font-bold text-foreground">{fundData.name}</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">{fundData.name}</h1>
+              <p className="text-xs text-muted-foreground font-mono mt-1">
+                {vaultAddress}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -290,20 +358,24 @@ export default function FundPage() {
             <Card className="p-6">
               <h2 className="text-xl font-bold text-foreground mb-4">Similar Funds</h2>
               <div className="space-y-4">
-                {similarFunds.map((fund) => (
-                  <div
-                    key={fund.id}
-                    className="p-4 border rounded-lg hover:border-primary/50 transition cursor-pointer"
-                    onClick={() => router.push(`/app/fund/${fund.id}`)}
-                  >
-                    <h3 className="font-semibold text-foreground mb-1">{fund.name}</h3>
-                    <p className="text-sm text-muted-foreground mb-2">{fund.category}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-primary font-semibold">{fund.return}</span>
-                      <span className="text-xs text-muted-foreground">{fund.aum}</span>
+                {similarVaults.length > 0 ? (
+                  similarVaults.map((fund) => (
+                    <div
+                      key={fund.address}
+                      className="p-4 border rounded-lg hover:border-primary/50 transition cursor-pointer"
+                      onClick={() => router.push(`/app/fund/${fund.address}`)}
+                    >
+                      <h3 className="font-semibold text-foreground mb-1">{fund.name}</h3>
+                      <p className="text-sm text-muted-foreground mb-2">{fund.category}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-primary font-semibold">{fund.return}</span>
+                        <span className="text-xs text-muted-foreground">{fund.aum}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">No other vaults available</p>
+                )}
               </div>
             </Card>
           </aside>

@@ -4,6 +4,7 @@ import { Figtree, Geist_Mono } from "next/font/google"
 import { Instrument_Serif } from "next/font/google"
 import "./globals.css"
 import { WalletProvider } from "@/components/providers/wallet-provider"
+import { Toaster } from "@/components/ui/sonner"
 
 const figtree = Figtree({
   subsets: ["latin"],
@@ -56,6 +57,7 @@ html {
       </head>
       <body className={`${figtree.variable} ${geistMono.variable} ${instrumentSerif.variable}`}>
         <WalletProvider>{children}</WalletProvider>
+        <Toaster position="bottom-right" />
       </body>
     </html>
   )

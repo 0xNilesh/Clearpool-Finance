@@ -1,10 +1,11 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { defineChain } from 'viem'
+import { NETWORK_CONFIG } from './contracts'
 
-// Mantle Testnet chain definition
-const mantleTestnet = defineChain({
-  id: 5001,
-  name: 'Mantle Testnet',
+// Mantle Sepolia chain definition
+const mantleSepolia = defineChain({
+  id: NETWORK_CONFIG.chainId,
+  name: NETWORK_CONFIG.name,
   nativeCurrency: {
     decimals: 18,
     name: 'Mantle',
@@ -12,13 +13,13 @@ const mantleTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ['https://rpc.testnet.mantle.xyz'],
+      http: [NETWORK_CONFIG.rpcUrl],
     },
   },
   blockExplorers: {
     default: {
-      name: 'Mantle Testnet Explorer',
-      url: 'https://explorer.testnet.mantle.xyz',
+      name: 'Mantle Sepolia Explorer',
+      url: 'https://sepolia.explorer.mantle.xyz',
     },
   },
   testnet: true,
@@ -27,7 +28,7 @@ const mantleTestnet = defineChain({
 export const config = getDefaultConfig({
   appName: 'Clearpool Finance',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID',
-  chains: [mantleTestnet],
+  chains: [mantleSepolia],
   ssr: true,
 })
 
