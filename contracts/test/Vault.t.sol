@@ -70,7 +70,8 @@ contract ComposableVaultTest is Test {
         address valuationImpl = address(new ValuationModule());
         address feeImpl = address(new PerformanceFeeModule());
         address governanceImpl = address(new GovernanceModule());
-        factory = new VaultFactory(adapterRegistryImpl, valuationImpl, feeImpl, governanceImpl, assetVaultImpl);
+        factory = new VaultFactory();
+        factory.initialize(adapterRegistryImpl, valuationImpl, feeImpl, governanceImpl, assetVaultImpl);
 
         usdc = new ERC20Mock();
         weth = new ERC20Mock();
