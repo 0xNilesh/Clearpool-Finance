@@ -66,3 +66,10 @@ logs
 
 cache
 out
+
+# Docusaurus
+frontend/docs/build
+frontend/docs/.docusaurus
+frontend/docs/.cache-loader
+frontend/public/docs
+frontend/docs/node_modules

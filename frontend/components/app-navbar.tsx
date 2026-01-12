@@ -62,15 +62,15 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
                 : pathname === "/app" && tab.id === "explore"
               return (
                 <Link
-                  key={tab.id}
+                key={tab.id}
                   href={tab.id === "portfolio" ? "/app/portfolio" : "/app"}
-                  className={`text-sm font-medium pb-2 border-b-2 transition ${
+                className={`text-sm font-medium pb-2 border-b-2 transition ${
                     isActive
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {tab.label}
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
                 </Link>
               )
             })}
@@ -93,7 +93,7 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
                     <span className="hidden sm:inline-block font-mono text-sm">
                       {formatAddress(address)}
                     </span>
-                  </Button>
+            </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={() => router.push("/app/profile")}>
@@ -114,7 +114,7 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
                 className="border-border hover:bg-primary/10 bg-transparent"
               >
                 Sign In
-              </Button>
+            </Button>
             )}
           </div>
         </div>

@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
-    "dev": "next dev",
+    "build": "npm run build:docs && next build",
+    "build:docs": "cd docs && npm install && npm run build && cd .. && rm -rf public/docs && cp -r docs/build public/docs",
+    "dev": "npm run build:docs:quick; next dev",
+    "build:docs:quick": "cd docs && npm run build && cd .. && rm -rf public/docs && cp -r docs/build public/docs",
+    "dev:docs": "cd docs && npm start",
     "lint": "eslint .",
     "start": "next start"
   },

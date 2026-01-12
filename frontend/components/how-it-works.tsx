@@ -4,27 +4,27 @@ import { useState, useEffect, useRef } from "react"
 import { Steps } from "@/components/ui/steps"
 
 const stepItems = [
-  {
-    title: "Browse Vaults",
+    {
+      title: "Browse Vaults",
     subTitle: "Explore options",
     content: "Explore curated investment vaults managed by verified professionals. Browse through our selection of professionally managed investment strategies and find the one that matches your goals.",
-  },
-  {
-    title: "Deposit Funds",
+    },
+    {
+      title: "Deposit Funds",
     subTitle: "Secure deposit",
     content: "Securely deposit your assets with transparent fee structures. Our multi-signature wallet system ensures your funds are protected with bank-grade security.",
-  },
-  {
-    title: "Earn Returns",
+    },
+    {
+      title: "Earn Returns",
     subTitle: "Watch growth",
     content: "Watch your investments grow with professional management and strategies. Our expert managers use proven strategies to maximize your returns while managing risk.",
-  },
-  {
-    title: "Withdraw Anytime",
+    },
+    {
+      title: "Withdraw Anytime",
     subTitle: "Instant access",
     content: "Maintain full control with instant withdrawal capabilities. No lock-in periods, no waiting times - withdraw your funds whenever you need them.",
-  },
-]
+    },
+  ]
 
 export default function HowItWorks() {
   const [current, setCurrent] = useState(0)

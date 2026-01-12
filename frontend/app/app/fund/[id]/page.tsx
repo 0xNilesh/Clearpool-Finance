@@ -14,6 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 // Mock fund data - in real app, fetch based on ID
 const fundData = {
@@ -38,6 +46,21 @@ const similarFunds = [
   { id: 12, name: "Healthcare Sector", category: "Sector", return: "+16.8%", aum: "$4.8M" },
 ]
 
+// Mock fund token holdings
+const fundTokens = [
+  { token: "ETH", percentage: "35%", amount: "$1,470,000" },
+  { token: "BTC", percentage: "25%", amount: "$1,050,000" },
+  { token: "USDC", percentage: "20%", amount: "$840,000" },
+  { token: "MATIC", percentage: "12%", amount: "$504,000" },
+  { token: "LINK", percentage: "8%", amount: "$336,000" },
+]
+
+// Mock active proposals
+const activeProposals = [
+  { id: 1, type: "Rebalance", description: "Reduce ETH allocation to 30%, increase BTC to 30%", votes: 45, status: "Active" },
+  { id: 2, type: "Rebalance", description: "Add UNI token at 5% allocation", votes: 32, status: "Active" },
+]
+
 // Mock chart data with realistic variations
 const chartData = {
   "1M": [120, 118, 122, 125, 123, 128, 130, 127, 132, 135, 133, 138, 140, 137, 142, 145, 143, 148, 150, 147, 152, 155, 153, 158, 160, 157, 162, 165],
@@ -56,6 +79,11 @@ export default function FundPage() {
   const data = chartData[duration as keyof typeof chartData] || chartData["1Y"]
   const maxValue = Math.max(...data)
   const minValue = Math.min(...data)
+
+  const handleProposeRebalance = () => {
+    // TODO: Implement propose rebalance functionality
+    console.log("Propose fund rebalance clicked")
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -132,8 +160,8 @@ export default function FundPage() {
             <Card className="p-6">
               <h2 className="text-xl font-bold text-foreground mb-4">Invest in this Fund</h2>
               <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">
+                <div className="flex items-center gap-4">
+                  <label className="text-sm font-medium text-foreground whitespace-nowrap">
                     Investment Amount
                   </label>
                   <Input
@@ -141,11 +169,8 @@ export default function FundPage() {
                     placeholder="Enter amount"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full"
+                    className="flex-1 border-2 border-border"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Minimum investment: {fundData.minInvestment}
-                  </p>
                 </div>
                 <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                   Buy Now
@@ -190,6 +215,71 @@ export default function FundPage() {
                 <div>
                   <h3 className="font-semibold text-foreground mb-2">Fees</h3>
                   <p className="text-muted-foreground">{fundData.fees}</p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground mb-4">Current Holdings</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Token</TableHead>
+                        <TableHead>Current Percentage</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {fundTokens.map((holding, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{holding.token}</TableCell>
+                          <TableCell>{holding.percentage}</TableCell>
+                          <TableCell className="text-right">{holding.amount}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="pt-4 border-t">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    If you believe the fund's current allocation is not performing optimally or needs adjustment, you can propose a rebalancing strategy that will be reviewed by the fund manager and voted on by other investors.
+                  </p>
+                  <Button
+                    onClick={handleProposeRebalance}
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Propose a Fund Rebalance
+                  </Button>
+                </div>
+                <div className="pt-4 border-t">
+                  <h3 className="font-semibold text-foreground mb-4">Active Proposals!</h3>
+                  {activeProposals.length > 0 ? (
+                    <div className="space-y-3">
+                      {activeProposals.map((proposal) => (
+                        <Card key={proposal.id} className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                                  {proposal.type}
+                                </span>
+                                <span className={`text-xs font-medium px-2 py-1 rounded ${
+                                  proposal.status === "Active"
+                                    ? "text-green-600 bg-green-500/10"
+                                    : "text-muted-foreground bg-muted"
+                                }`}>
+                                  {proposal.status}
+                                </span>
+                              </div>
+                              <p className="text-sm text-foreground mb-2">{proposal.description}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {proposal.votes} votes
+                              </p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No active proposals at this time.</p>
+                  )}
                 </div>
               </div>
             </Card>

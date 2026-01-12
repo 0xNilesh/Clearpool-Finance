@@ -13,7 +13,7 @@ import {
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Filter, X } from "lucide-react"
+import { Filter, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 
 interface Vault {
   id: number
@@ -44,6 +44,9 @@ const vaults: Vault[] = [
   { id: 15, name: "Global Diversified", category: "Multi-Asset", rating: 4.3, oneYearReturn: "+13.6%", allTimeReturn: "+41.8%", aum: "$5.5M", traderExperience: 12 },
 ]
 
+type SortColumn = "rating" | "oneYearReturn" | "allTimeReturn" | "aum" | "traderExperience" | null
+type SortDirection = "asc" | "desc" | null
+
 export default function VaultsTable() {
   const router = useRouter()
   const [showFilters, setShowFilters] = useState(false)
@@ -51,6 +54,25 @@ export default function VaultsTable() {
     aum: "",
     traderExperience: "",
   })
+  const [sortColumn, setSortColumn] = useState<SortColumn>(null)
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
+
+  // Helper functions to parse values for sorting
+  const parsePercentage = (value: string): number => {
+    return parseFloat(value.replace(/[+%]/g, "")) || 0
+  }
+
+  const parseAUM = (value: string): number => {
+    const numStr = value.replace(/[$,\s]/g, "").toLowerCase()
+    if (numStr.endsWith("k")) {
+      return parseFloat(numStr.slice(0, -1)) * 1000
+    } else if (numStr.endsWith("m")) {
+      return parseFloat(numStr.slice(0, -1)) * 1000000
+    } else if (numStr.endsWith("b")) {
+      return parseFloat(numStr.slice(0, -1)) * 1000000000
+    }
+    return parseFloat(numStr) || 0
+  }
 
   const filteredVaults = vaults.filter((vault) => {
     if (filters.aum && !vault.aum.toLowerCase().includes(filters.aum.toLowerCase())) {
@@ -61,6 +83,73 @@ export default function VaultsTable() {
     }
     return true
   })
+
+  // Sort function
+  const sortedVaults = [...filteredVaults].sort((a, b) => {
+    if (!sortColumn || !sortDirection) return 0
+
+    let aValue: number
+    let bValue: number
+
+    switch (sortColumn) {
+      case "rating":
+        aValue = a.rating
+        bValue = b.rating
+        break
+      case "oneYearReturn":
+        aValue = parsePercentage(a.oneYearReturn)
+        bValue = parsePercentage(b.oneYearReturn)
+        break
+      case "allTimeReturn":
+        aValue = parsePercentage(a.allTimeReturn)
+        bValue = parsePercentage(b.allTimeReturn)
+        break
+      case "aum":
+        aValue = parseAUM(a.aum)
+        bValue = parseAUM(b.aum)
+        break
+      case "traderExperience":
+        aValue = a.traderExperience
+        bValue = b.traderExperience
+        break
+      default:
+        return 0
+    }
+
+    if (sortDirection === "asc") {
+      return aValue - bValue
+    } else {
+      return bValue - aValue
+    }
+  })
+
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Cycle through: asc -> desc -> null
+      if (sortDirection === "asc") {
+        setSortDirection("desc")
+      } else if (sortDirection === "desc") {
+        setSortColumn(null)
+        setSortDirection(null)
+      }
+    } else {
+      setSortColumn(column)
+      setSortDirection("asc")
+    }
+  }
+
+  const getSortIcon = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+    }
+    if (sortDirection === "asc") {
+      return <ArrowUp className="w-4 h-4 text-primary" />
+    }
+    if (sortDirection === "desc") {
+      return <ArrowDown className="w-4 h-4 text-primary" />
+    }
+    return <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+  }
 
   const clearFilters = () => {
     setFilters({ aum: "", traderExperience: "" })
@@ -134,15 +223,70 @@ export default function VaultsTable() {
             <TableRow>
               <TableHead className="font-semibold text-base py-4">Name</TableHead>
               <TableHead className="font-semibold text-base py-4">Category</TableHead>
-              <TableHead className="font-semibold text-base py-4">Rating</TableHead>
-              <TableHead className="font-semibold text-base py-4">1 Yr Return</TableHead>
-              <TableHead className="font-semibold text-base py-4">All Time Returns</TableHead>
-              <TableHead className="font-semibold text-base py-4">AUM</TableHead>
-              <TableHead className="font-semibold text-base py-4">Trader Experience</TableHead>
+              <TableHead className="font-semibold text-base py-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSort("rating")
+                  }}
+                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                >
+                  Rating
+                  {getSortIcon("rating")}
+                </button>
+              </TableHead>
+              <TableHead className="font-semibold text-base py-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSort("oneYearReturn")
+                  }}
+                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                >
+                  1 Yr Return
+                  {getSortIcon("oneYearReturn")}
+                </button>
+              </TableHead>
+              <TableHead className="font-semibold text-base py-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSort("allTimeReturn")
+                  }}
+                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                >
+                  All Time Returns
+                  {getSortIcon("allTimeReturn")}
+                </button>
+              </TableHead>
+              <TableHead className="font-semibold text-base py-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSort("aum")
+                  }}
+                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                >
+                  AUM
+                  {getSortIcon("aum")}
+                </button>
+              </TableHead>
+              <TableHead className="font-semibold text-base py-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleSort("traderExperience")
+                  }}
+                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                >
+                  Trader Experience
+                  {getSortIcon("traderExperience")}
+                </button>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredVaults.map((vault) => (
+            {sortedVaults.map((vault) => (
               <TableRow 
                 key={vault.id} 
                 className="hover:bg-muted/50 cursor-pointer transition-colors"

@@ -98,13 +98,13 @@ export default function Navbar() {
                   className="border-border hover:bg-primary/10 bg-transparent"
                 >
                   Sign In
-                </Button>
+            </Button>
                 <Button 
                   onClick={handleGetStarted}
                   className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
                 >
-                  Get Started
-                </Button>
+              Get Started
+            </Button>
               </>
             )}
           </div>
