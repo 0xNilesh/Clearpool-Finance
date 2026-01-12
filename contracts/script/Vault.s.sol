@@ -16,7 +16,7 @@ contract DeployComposableVaults is Script {
     // CONFIG - Mantle Mainnet (Jan 2026)
     // ──────────────────────────────────────────────────────────────
 
-    uint256 constant MANTLE_CHAIN_ID = 5000;
+    uint256 constant MANTLE_CHAIN_ID = 5003;
 
     // Official addresses (verified Jan 2026)
     address constant UNISWAP_V3_ROUTER = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
@@ -32,14 +32,10 @@ contract DeployComposableVaults is Script {
     // ──────────────────────────────────────────────────────────────
 
     function run() external {
-        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
-        if (deployerKey == 0) revert("PRIVATE_KEY env var missing bro");
+        vm.startBroadcast();
 
-        vm.startBroadcast(deployerKey);
-
-        address deployer = msg.sender;
+        address deployer = 0x778D3206374f8AC265728E18E3fE2Ae6b93E4ce4;
         console2.log("Deploying on Mantle (chainId %s) from %s", block.chainid, deployer);
-        require(block.chainid == MANTLE_CHAIN_ID, "Wrong chain! Switch to Mantle mainnet");
 
         // ─── 1. Deploy all IMPLEMENTATIONS first ─────────────────────────────
         address assetVaultImpl      = address(new AssetVault());
@@ -58,16 +54,14 @@ contract DeployComposableVaults is Script {
         }
 
         // ─── 2. Deploy VaultFactory with all impl addresses ──────────────────
-        VaultFactory factory = new VaultFactory(
-            adapterRegistryImpl,
+        VaultFactory factory = new VaultFactory();
+
+        // If your VaultFactory needs a separate initialize call (most do)
+        factory.initialize(adapterRegistryImpl,
             valuationImpl,
             feeImpl,
             governanceImpl,       // can be address(0) if governance not enabled
-            assetVaultImpl
-        );
-
-        // If your VaultFactory needs a separate initialize call (most do)
-        factory.initialize();   // comment out if constructor already inits everything
+            assetVaultImpl);   // comment out if constructor already inits everything
 
         console2.log("VaultFactory deployed at: %s", address(factory));
 

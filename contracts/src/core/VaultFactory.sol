@@ -35,12 +35,11 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     mapping(uint256 => VaultInfo) public vaultInfoById;
 
-    // ─── Implementation addresses (set once at initialization) ───────────────
-    address public immutable adapterRegistryImpl;
-    address public immutable valuationImpl;
-    address public immutable feeImpl;
-    address public immutable governanceImpl;
-    address public immutable assetVaultImpl;
+    address public adapterRegistryImpl;
+    address public valuationImpl;
+    address public feeImpl;
+    address public governanceImpl;
+    address public assetVaultImpl;
 
     // Events
     event VaultCreated(
@@ -58,25 +57,18 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     error InvalidBaseAsset();
     error VaultDoesNotExist();
 
-    constructor(
-        address _adapterRegistryImpl,
+    function initialize(address _adapterRegistryImpl,
         address _valuationImpl,
         address _feeImpl,
         address _governanceImpl,
-        address _assetVaultImpl
-    ) {
+        address _assetVaultImpl) external initializer {
+        __Ownable_init(msg.sender);
+
         adapterRegistryImpl = _adapterRegistryImpl;
         valuationImpl = _valuationImpl;
         feeImpl = _feeImpl;
         governanceImpl = _governanceImpl;
         assetVaultImpl = _assetVaultImpl;
-
-        // Prevent initialization of implementation
-        _disableInitializers();
-    }
-
-    function initialize() external initializer {
-        __Ownable_init(msg.sender);
     }
 
     function createVault(
