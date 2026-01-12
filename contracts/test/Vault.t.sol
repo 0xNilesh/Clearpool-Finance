@@ -73,8 +73,7 @@ contract ComposableVaultTest is Test {
         usdc.mint(investor3, 100_000 * 1e18);
         usdc.mint(curator, 10_000 * 1e18);
 
-        bytes32 salt = keccak256("test-vault-1");
-        address vaultAddr = factory.createVault(salt, address(usdc), "Composable USDC Vault", "cUSDC", true, curator);
+        address vaultAddr = factory.createVault(address(usdc), "Composable USDC Vault", "cUSDC", true, curator);
 
         vault = AssetVault(vaultAddr);
         governance = GovernanceModule(address(vault.governanceModule()));
