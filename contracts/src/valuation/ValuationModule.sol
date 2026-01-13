@@ -7,67 +7,178 @@ import {Initializable} from "@openzeppelin-upgradeable/contracts/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin-upgradeable/contracts/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin-upgradeable/contracts/access/OwnableUpgradeable.sol";
 
+import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {OracleLibrary} from "../libraries/OracleLibrary.sol";
+import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+
 contract ValuationModule is IValuationModule, Initializable, OwnableUpgradeable, UUPSUpgradeable {
-    mapping(address => uint256) public prices; // token => price in base (1e18)
-    address[] public trackedTokens; // list of tokens to value (curator adds)
+    address public baseAsset; // e.g. USDC, WETH – prices are in baseAsset * 1e18
+    mapping(address => uint256) public manualPrices; // token => price in base (1e18) – fallback
 
-    address public baseAsset;
+    // TWAP sources – set by owner/curator
+    mapping(address => address) public tokenToPool; // token -> canonical Uniswap V3 pool (with baseAsset)
+    mapping(address => uint24) public tokenToFeeTier; // fee tier of the pool (e.g. 500, 3000, 10000)
 
-    function initialize(address _vault, address _baseAsset) external initializer {
-        __Ownable_init(_vault);
+    uint32 public twapInterval = 1800; // 30 minutes default
+
+    address[] public trackedTokens;
+
+    // ── Events ────────────────────────────────────────────────────────────────
+    event PriceSourceSet(address indexed token, address pool, uint24 feeTier);
+    event ManualPriceSet(address indexed token, uint256 price);
+    event TwapIntervalUpdated(uint32 newInterval);
+
+    // ── Initialization ────────────────────────────────────────────────────────
+    function initialize(address _owner, address _baseAsset) external initializer {
+        __Ownable_init(_owner);
+
         baseAsset = _baseAsset;
-        prices[_baseAsset] = 1e18;
-        trackedTokens.push(_baseAsset);
+
+        // Base asset always 1:1
+        manualPrices[_baseAsset] = 1e18;
+        if (!isTracked(_baseAsset)) {
+            trackedTokens.push(_baseAsset);
+        }
     }
 
-    function calculateNAV(address vault) external view returns (uint256 nav) {
-        // Always include base asset
+    // ── Core NAV Calculation ──────────────────────────────────────────────────
+    function calculateNAV(address vault) external view override returns (uint256 nav) {
+        // Base asset balance (always included)
         nav = IERC20(baseAsset).balanceOf(vault);
 
-        // Add value of tracked tokens
-        for (uint256 i = 0; i < trackedTokens.length; i++) {
+        uint256 len = trackedTokens.length;
+        for (uint256 i = 0; i < len; ++i) {
             address token = trackedTokens[i];
             if (token == baseAsset) continue;
 
-            uint256 price = prices[token];
+            uint256 price = getPrice(token);
             if (price == 0) continue;
 
             uint256 balance = IERC20(token).balanceOf(vault);
+            // Careful with overflow – in practice use mulDiv if available
             nav += (balance * price) / 1e18;
         }
-
-        return nav;
     }
 
-    function setPrice(address token, uint256 priceInBase) external {
-        // TODO: add onlyCurator / onlyOwner
-        prices[token] = priceInBase;
+    // ── Main Price Fetch – TWAP > Manual fallback ─────────────────────────────
+    function getPrice(address token) public view returns (uint256 priceInBase) {
+        // 1. Try TWAP first (preferred)
+        address pool = tokenToPool[token];
+        if (pool != address(0)) {
+            priceInBase = _getTwapPrice(pool, token);
+            if (priceInBase > 0) return priceInBase;
+        }
 
-        // Auto-add to tracked list if new
+        // 2. Fallback to manual price set by owner/curator
+        return manualPrices[token];
+    }
+
+    function _getTwapPrice(address pool, address token) internal view returns (uint256) {
+        if (twapInterval == 0) return 0; // disabled
+
+        uint32[] memory secondsAgos = new uint32[](2);
+        secondsAgos[0] = twapInterval;
+        secondsAgos[1] = 0;
+
+        (int56[] memory tickCumulatives,) = IUniswapV3Pool(pool).observe(secondsAgos);
+
+        int56 delta = tickCumulatives[1] - tickCumulatives[0];
+        int24 averageTick = int24(delta / int56(uint56(twapInterval)));
+
+        // Proper rounding for negative values
+        if (delta < 0 && (delta % int56(uint56(twapInterval)) != 0)) {
+            averageTick--;
+        }
+
+        address token0 = IUniswapV3Pool(pool).token0();
+        address base = baseAsset;
+
+        // We always want price: how much baseAsset for 1e18 of token
+        uint128 baseAmount = 1e18; // assume 18-decimal base (adjust if needed)
+
+        if (token0 == base) {
+            // base = token0 → get quote of base → token
+            return OracleLibrary.getQuoteAtTick(
+                averageTick,
+                baseAmount,
+                base, // baseToken
+                token // quoteToken
+            );
+        } else {
+            // token = token0, base = token1 → get quote token → base, then invert
+            uint256 quoteAmount = OracleLibrary.getQuoteAtTick(averageTick, baseAmount, token, base);
+            if (quoteAmount == 0) return 0;
+            return (10 ** 36) / quoteAmount; // 1e18 * 1e18 / quoteAmount → price of token in base
+        }
+    }
+
+    // ── Price Management (Owner / Curator) ────────────────────────────────────
+    function setManualPrice(address token, uint256 priceInBase) external onlyOwner {
+        require(token != baseAsset, "Cannot override base asset");
+        manualPrices[token] = priceInBase;
+        emit ManualPriceSet(token, priceInBase);
+
+        // Auto-track if not already
         if (!isTracked(token)) {
             trackedTokens.push(token);
         }
     }
 
-    function isTracked(address token) internal view returns (bool) {
-        for (uint256 i = 0; i < trackedTokens.length; i++) {
+    function setPriceSource(address token, address pool, uint24 feeTier) external onlyOwner {
+        require(token != baseAsset, "Cannot set base asset");
+        require(pool != address(0), "Invalid pool");
+
+        address t0 = IUniswapV3Pool(pool).token0();
+        address t1 = IUniswapV3Pool(pool).token1();
+        require(
+            (t0 == token && t1 == baseAsset) || (t0 == baseAsset && t1 == token), "Pool must contain token & baseAsset"
+        );
+        require(IUniswapV3Pool(pool).fee() == feeTier, "Fee tier mismatch");
+
+        tokenToPool[token] = pool;
+        tokenToFeeTier[token] = feeTier;
+
+        emit PriceSourceSet(token, pool, feeTier);
+
+        // Auto-track
+        if (!isTracked(token)) {
+            trackedTokens.push(token);
+        }
+    }
+
+    function setTwapInterval(uint32 _interval) external onlyOwner {
+        require(_interval >= 300 && _interval <= 86400, "TWAP interval out of reasonable range"); // 5min – 1day
+        twapInterval = _interval;
+        emit TwapIntervalUpdated(_interval);
+    }
+
+    // ── Token Tracking Helpers ────────────────────────────────────────────────
+    function addTrackedToken(address token) external onlyOwner {
+        if (!isTracked(token)) {
+            trackedTokens.push(token);
+        }
+    }
+
+    function isTracked(address token) public view returns (bool) {
+        uint256 len = trackedTokens.length;
+        for (uint256 i = 0; i < len; ++i) {
             if (trackedTokens[i] == token) return true;
         }
         return false;
     }
 
-    function valueOf(address token, address vault) external view returns (uint256) {
-        uint256 price = prices[token];
-        if (price == 0) return 0;
-        return IERC20(token).balanceOf(vault) * price / 1e18;
-    }
-
-    // Optional: Curator can add tracked token manually without price
-    function addTrackedToken(address token) external {
-        if (!isTracked(token)) {
-            trackedTokens.push(token);
+    // Value of single position
+    function valueOf(address token, address vault) external view override returns (uint256) {
+        if (token == baseAsset) {
+            return IERC20(baseAsset).balanceOf(vault);
         }
+
+        uint256 price = getPrice(token);
+        if (price == 0) return 0;
+
+        return (IERC20(token).balanceOf(vault) * price) / 1e18;
     }
 
-    function _authorizeUpgrade(address) internal override {}
+    // ── Upgrade authorization ─────────────────────────────────────────────────
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

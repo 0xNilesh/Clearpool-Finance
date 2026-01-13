@@ -89,9 +89,6 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         address regProxy =
             address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(0)))}(adapterRegistryImpl, ""));
 
-        address valProxy =
-            address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(1)))}(valuationImpl, ""));
-
         address feeProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(vaultId, uint256(2)))}(feeImpl, ""));
 
         address govProxy = address(0);
@@ -104,7 +101,7 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             AssetVault.initialize.selector,
             baseAsset,
             regProxy,
-            valProxy,
+            valuationImpl,
             feeProxy,
             govProxy,
             governanceEnabled,
@@ -116,7 +113,6 @@ contract VaultFactory is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // ─── STEP 2: POST-DEPLOY INITIALIZE modules with vault address ─────
         AdapterRegistry(regProxy).initialize(vault);
-        ValuationModule(valProxy).initialize(vault, baseAsset);
         PerformanceFeeModule(feeProxy).initialize(vault, curator);
 
         if (governanceEnabled) {
