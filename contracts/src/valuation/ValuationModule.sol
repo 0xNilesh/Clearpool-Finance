@@ -28,6 +28,11 @@ contract ValuationModule is IValuationModule, Initializable, OwnableUpgradeable,
     event ManualPriceSet(address indexed token, uint256 price);
     event TwapIntervalUpdated(uint32 newInterval);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     // ── Initialization ────────────────────────────────────────────────────────
     function initialize(address _owner, address _baseAsset) external initializer {
         __Ownable_init(_owner);
@@ -74,7 +79,7 @@ contract ValuationModule is IValuationModule, Initializable, OwnableUpgradeable,
     }
 
     function _getTwapPrice(address pool, address token) internal view returns (uint256) {
-        if (twapInterval == 0) return 0; // disabled
+        if (twapInterval == 0) return 0;
 
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = twapInterval;
@@ -85,31 +90,14 @@ contract ValuationModule is IValuationModule, Initializable, OwnableUpgradeable,
         int56 delta = tickCumulatives[1] - tickCumulatives[0];
         int24 averageTick = int24(delta / int56(uint56(twapInterval)));
 
-        // Proper rounding for negative values
+        // Proper rounding for negative ticks
         if (delta < 0 && (delta % int56(uint56(twapInterval)) != 0)) {
             averageTick--;
         }
 
-        address token0 = IUniswapV3Pool(pool).token0();
-        address base = baseAsset;
+        uint256 rawQuote = OracleLibrary.getQuoteAtTick(averageTick, 1e8, token, baseAsset);
 
-        // We always want price: how much baseAsset for 1e18 of token
-        uint128 baseAmount = 1e18; // assume 18-decimal base (adjust if needed)
-
-        if (token0 == base) {
-            // base = token0 → get quote of base → token
-            return OracleLibrary.getQuoteAtTick(
-                averageTick,
-                baseAmount,
-                base, // baseToken
-                token // quoteToken
-            );
-        } else {
-            // token = token0, base = token1 → get quote token → base, then invert
-            uint256 quoteAmount = OracleLibrary.getQuoteAtTick(averageTick, baseAmount, token, base);
-            if (quoteAmount == 0) return 0;
-            return (10 ** 36) / quoteAmount; // 1e18 * 1e18 / quoteAmount → price of token in base
-        }
+        return rawQuote * 1e10; // 1e18 / 1e8 = 1e10 scaling
     }
 
     // ── Price Management (Owner / Curator) ────────────────────────────────────
