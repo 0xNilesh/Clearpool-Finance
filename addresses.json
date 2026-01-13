@@ -43,21 +43,6 @@
     ]
   },
   "pools": {
-    "ETH_USDC_3000": {
-      "name": "ETH/USDC Pool",
-      "address": "0xf5D187d55457829D9495908C5F259A26B355B6fc",
-      "token0": "0xB5B1e1ADc1b8fc1066975aa09f9371a5f67C54F5",
-      "token1": "0xe0b7A8833f77C5728295D489F4B64f9DA236E4C8",
-      "token0Symbol": "ETH",
-      "token1Symbol": "USDC",
-      "fee": 3000,
-      "feePercentage": "0.30%",
-      "priceRatio": 4000,
-      "sqrtPriceX96": "5010828967500958623728276",
-      "currentTick": "-193380",
-      "targetPricing": "1 ETH = 4000 USDC",
-      "createdAt": "2026-01-11T13:40:16.551Z"
-    },
     "USDC_ETH_3000": {
       "name": "USDC/ETH Pool",
       "address": "0x59576B17a738A21dF505C2D200FcBFC507824e38",
@@ -162,21 +147,6 @@
       "currentTick": "-25259",
       "targetPricing": "1 HYPE = 0.08 WMNT",
       "createdAt": "2026-01-11T16:36:40.785Z"
-    },
-    "USDC_BTC_3000": {
-      "name": "USDC/BTC Pool",
-      "address": "0x8EdAd61c4B6814828F7644978575CC8c67b80622",
-      "token0": "0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc",
-      "token1": "0xf76C0491B360Ce9625226C85A70b6C6516dFf7AF",
-      "token0Symbol": "USDC",
-      "token1Symbol": "BTC",
-      "fee": 3000,
-      "feePercentage": "0.30%",
-      "priceRatio": 0.00001,
-      "sqrtPriceX96": "250541448375047931186413801",
-      "currentTick": "-115136",
-      "targetPricing": "1 USDC = 0.00001 BTC",
-      "createdAt": "2026-01-11T16:44:27.858Z"
     },
     "BTC_USDC_3000": {
       "name": "BTC/USDC Pool",

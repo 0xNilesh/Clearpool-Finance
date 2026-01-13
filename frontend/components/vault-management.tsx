@@ -30,12 +30,199 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Edit, Square, Eye, ChevronDown, ChevronUp, Plus, Loader2 } from "lucide-react"
+import { Edit, Square, ChevronDown, ChevronUp, Plus, Loader2 } from "lucide-react"
 import { useAllVaults } from "@/hooks/use-vaults"
-import { useWriteContract, useWaitForTransactionReceipt } from "wagmi"
+import { useWriteContract, useWaitForTransactionReceipt, useReadContracts, useReadContract } from "wagmi"
+import { createPublicClient, http, defineChain } from "viem"
+import { NETWORK_CONFIG } from "@/lib/contracts"
 import { CONTRACTS, CONTRACT_ADDRESSES } from "@/lib/contracts"
 import { toast } from "sonner"
 import { useAccount } from "wagmi"
+import { formatUnits, parseUnits, encodeFunctionData, keccak256, toHex, encodeAbiParameters, parseAbiParameters } from "viem"
+import { useMemo } from "react"
+import addresses from "@/../addresses.json"
+
+
+// Component for displaying USDC balance in vault
+function USDCBalanceDisplay({ vaultAddress }: { vaultAddress: string }) {
+  const usdcAddress = addresses.testTokens.USDC.address as `0x${string}`
+  
+  const { data: balance, isLoading } = useReadContract({
+    address: usdcAddress,
+    abi: [
+      {
+        name: "balanceOf",
+        type: "function",
+        stateMutability: "view",
+        inputs: [{ name: "account", type: "address" }],
+        outputs: [{ name: "", type: "uint256" }],
+      },
+    ] as const,
+    functionName: "balanceOf",
+    args: [vaultAddress as `0x${string}`],
+  })
+
+  if (isLoading) {
+    return <span>Loading...</span>
+  }
+
+  if (!balance) {
+    return <span>$0.00 USDC</span>
+  }
+
+  const balanceFormatted = formatUnits(balance, 18)
+  return <>${Number(balanceFormatted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC</>
+}
+
+// Component for displaying vault holdings
+function VaultHoldings({
+  vaultAddress,
+  totalAssets,
+  TOKEN_MAP,
+  tokenAddresses,
+  handleBuy,
+  handleSell,
+  handleRebalance,
+}: {
+  vaultAddress: string
+  totalAssets?: bigint
+  TOKEN_MAP: Map<string, { name: string; symbol: string; decimals: number }>
+  tokenAddresses: `0x${string}`[]
+  handleBuy: (token: string) => void
+  handleSell: (token: string) => void
+  handleRebalance: () => void
+}) {
+  // Get balances for all tokens in the vault
+  const balanceContracts = useMemo(() => {
+    if (!vaultAddress) return []
+    return tokenAddresses.map((tokenAddr) => ({
+      address: tokenAddr,
+      abi: [
+        {
+          name: "balanceOf",
+          type: "function",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }],
+        },
+      ] as const,
+      functionName: "balanceOf" as const,
+      args: [vaultAddress as `0x${string}`],
+    }))
+  }, [vaultAddress, tokenAddresses])
+
+  const { data: balanceResults, isLoading: balancesLoading } = useReadContracts({
+    contracts: balanceContracts,
+    query: {
+      enabled: balanceContracts.length > 0 && !!vaultAddress,
+    },
+  })
+
+  // Calculate vault holdings
+  const vaultHoldings = useMemo(() => {
+    if (!balanceResults || !totalAssets) return []
+    
+    const holdings: Array<{ token: string; value: string; usdValue: string }> = []
+    
+    balanceResults.forEach((result, index) => {
+      if (result.status === "success" && result.result) {
+        const balance = result.result as bigint
+        const tokenAddress = tokenAddresses[index]
+        const tokenInfo = TOKEN_MAP.get(tokenAddress.toLowerCase())
+        
+        if (tokenInfo && balance > BigInt(0)) {
+          const balanceFormatted = formatUnits(balance, tokenInfo.decimals)
+          const balanceValue = Number(balanceFormatted)
+          
+          // Format value
+          const value = balanceValue.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 6,
+          })
+          
+          // Format USD value (simplified - would need actual token prices)
+          const usdValue = `$${(balanceValue).toLocaleString(undefined, { 
+            minimumFractionDigits: 2, 
+            maximumFractionDigits: 2 
+          })}`
+          
+          holdings.push({
+            token: tokenInfo.symbol,
+            value,
+            usdValue,
+          })
+        }
+      }
+    })
+    
+    // Sort by token symbol
+    return holdings.sort((a, b) => a.token.localeCompare(b.token))
+  }, [balanceResults, totalAssets, tokenAddresses, TOKEN_MAP])
+
+  return (
+    <div className="mt-6 pt-6 border-t space-y-4">
+      <h4 className="font-semibold text-foreground mb-4">Current Fund Holdings</h4>
+      {balancesLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Loading holdings...</span>
+        </div>
+      ) : vaultHoldings.length > 0 ? (
+        <>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Token</TableHead>
+                <TableHead>Value</TableHead>
+                <TableHead>USD Value</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {vaultHoldings.map((holding, index) => (
+                <TableRow key={index}>
+                  <TableCell className="font-medium">{holding.token}</TableCell>
+                  <TableCell>{holding.value}</TableCell>
+                  <TableCell>{holding.usdValue}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleBuy(holding.token)}
+                        className="bg-green-500/10 hover:bg-green-500/20 text-green-600 border-green-500/20"
+                      >
+                        Buy
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleSell(holding.token)}
+                        className="bg-red-500/10 hover:bg-red-500/20 text-red-600 border-red-500/20"
+                      >
+                        Sell
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <div className="pt-4">
+            <Button
+              onClick={handleRebalance}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Rebalance Fund
+            </Button>
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground py-4">No holdings found</p>
+      )}
+    </div>
+  )
+}
 
 export default function VaultManagement() {
   const [expandedVaults, setExpandedVaults] = useState<Set<number>>(new Set())
@@ -45,12 +232,35 @@ export default function VaultManagement() {
   const [selectedVaultId, setSelectedVaultId] = useState<number | null>(null)
   const [selectedToken, setSelectedToken] = useState<string>("")
   const [amount, setAmount] = useState<string>("")
+  const [tokenPrices, setTokenPrices] = useState<Map<string, bigint>>(new Map())
 
   // Create vault form state
   const [vaultName, setVaultName] = useState("")
   const [vaultSymbol, setVaultSymbol] = useState("")
   const [governanceEnabled, setGovernanceEnabled] = useState(false)
   const { address: connectedAddress } = useAccount()
+  
+  // Create public client for reading contract data
+  const getPublicClient = () => {
+    const chain = defineChain({
+      id: NETWORK_CONFIG.chainId,
+      name: NETWORK_CONFIG.name,
+      nativeCurrency: {
+        decimals: 18,
+        name: "Mantle",
+        symbol: "MNT",
+      },
+      rpcUrls: {
+        default: {
+          http: [NETWORK_CONFIG.rpcUrl],
+        },
+      },
+    })
+    return createPublicClient({
+      chain,
+      transport: http(),
+    })
+  }
 
   // Fetch vaults dynamically from contract
   const { vaults, isLoading } = useAllVaults()
@@ -58,29 +268,81 @@ export default function VaultManagement() {
   // Fixed base asset - USDC
   const baseAsset = "0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc" // USDC address
 
-  // Write contract for creating vault
+  // Write contract for creating vault and executing adapter
   const {
     data: hash,
     writeContract,
     isPending: isCreating,
     error: createError,
   } = useWriteContract()
+  
+  const {
+    data: rebalanceHash,
+    writeContract: writeRebalance,
+    isPending: isRebalancing,
+    error: rebalanceError,
+  } = useWriteContract()
+  
+  const { isLoading: isRebalanceConfirming, isSuccess: isRebalanceSuccess } = useWaitForTransactionReceipt({
+    hash: rebalanceHash,
+  })
+
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
       hash,
     })
 
-  // Mock fund tokens data
-  const fundTokens = [
-    { token: "ETH", value: "2.5", usdValue: "$6,250" },
-    { token: "BTC", value: "0.15", usdValue: "$9,750" },
-    { token: "USDC", value: "10,000", usdValue: "$10,000" },
-    { token: "MATIC", value: "5,000", usdValue: "$4,500" },
-  ]
+  const availableTokens = ["ETH", "BTC", "SOL", "HYPE", "WMNT"]
 
-  const availableTokens = ["ETH", "BTC", "USDC", "MATIC", "LINK", "UNI"]
-  const usdcBalance = "50,000" // Mock USDC balance
+  // Create token address to name mapping from addresses.json
+  const TOKEN_MAP = useMemo(() => {
+    const tokenMap = new Map<string, { name: string; symbol: string; decimals: number }>()
+    
+    // Add tokens from testTokens
+    Object.entries(addresses.testTokens).forEach(([key, token]: [string, any]) => {
+      tokenMap.set(token.address.toLowerCase(), {
+        name: token.name,
+        symbol: token.symbol,
+        decimals: token.decimals,
+      })
+    })
+    
+    // Add WMNT from contracts
+    tokenMap.set(addresses.contracts.WPC.toLowerCase(), {
+      name: "WMNT",
+      symbol: "WMNT",
+      decimals: 18,
+    })
+    
+    // Add tokens from pools (token0 and token1)
+    Object.values(addresses.pools).forEach((pool: any) => {
+      const token0Lower = pool.token0.toLowerCase()
+      if (!tokenMap.has(token0Lower)) {
+        tokenMap.set(token0Lower, {
+          name: pool.token0Symbol,
+          symbol: pool.token0Symbol,
+          decimals: 18,
+        })
+      }
+      
+      const token1Lower = pool.token1.toLowerCase()
+      if (!tokenMap.has(token1Lower)) {
+        tokenMap.set(token1Lower, {
+          name: pool.token1Symbol,
+          symbol: pool.token1Symbol,
+          decimals: 18,
+        })
+      }
+    })
+    
+    return tokenMap
+  }, [])
+
+  // Get all unique token addresses
+  const tokenAddresses = useMemo(() => {
+    return Array.from(TOKEN_MAP.keys()).map(addr => addr as `0x${string}`)
+  }, [TOKEN_MAP])
 
   const toggleVault = (vaultId: number) => {
     const newExpanded = new Set(expandedVaults)
@@ -92,21 +354,191 @@ export default function VaultManagement() {
     setExpandedVaults(newExpanded)
   }
 
-  const handleRebalance = (vaultId: number) => {
+  const handleRebalance = async (vaultId: number) => {
     setSelectedVaultId(vaultId)
     setRebalanceDialogOpen(true)
+    
+    // Fetch prices for all tokens when dialog opens
+    const selectedVault = vaults.find(v => v.id === vaultId)
+    if (!selectedVault) return
+    
+    try {
+      // Step 1: Get vault address (proxy)
+      const vaultAddress = selectedVault.address as `0x${string}`
+      const publicClient = getPublicClient()
+      
+      // Step 2: Read ValuationModule address from vault (proxy)
+      // Vault proxy has a view function that returns the ValuationModule address
+      const valuationModuleAddress = await publicClient.readContract({
+        address: vaultAddress,
+        abi: CONTRACTS.AssetVault.abi,
+        functionName: "valuationModule",
+      }) as `0x${string}`
+      
+      // Step 3: Fetch prices for all available tokens from ValuationModule (proxy)
+      // ValuationModule proxy has the prices mapping
+      const priceMap = new Map<string, bigint>()
+      
+      for (const token of availableTokens) {
+        let tokenAddress: string | null = null
+        const tokenInfo = Object.entries(addresses.testTokens).find(
+          ([key, value]: [string, any]) => value.symbol === token || value.name === token
+        )
+        if (tokenInfo) {
+          tokenAddress = (tokenInfo[1] as any).address
+        } else if (token === "WMNT") {
+          tokenAddress = addresses.contracts.WPC
+        }
+        
+        if (tokenAddress) {
+          try {
+            // Read price from ValuationModule proxy's prices mapping
+            const price = await publicClient.readContract({
+              address: valuationModuleAddress,
+              abi: CONTRACTS.ValuationModule.abi,
+              functionName: "prices",
+              args: [tokenAddress as `0x${string}`],
+            }) as bigint
+            if (price && price > BigInt(0)) {
+              priceMap.set(token, price)
+            }
+          } catch (error) {
+            // Price not set, will show N/A
+          }
+        }
+      }
+      
+      setTokenPrices(priceMap)
+    } catch (error) {
+      console.error("Failed to fetch token prices:", error)
+    }
   }
 
-  const handleExecuteRebalance = () => {
-    // TODO: Implement rebalance functionality
-    console.log("Executing rebalance:", {
-      vaultId: selectedVaultId,
-      token: selectedToken,
-      amount: amount,
-    })
-    setRebalanceDialogOpen(false)
-    setSelectedToken("")
-    setAmount("")
+  const handleExecuteRebalance = async () => {
+    if (!selectedVaultId || !selectedToken || !amount) {
+      toast.error("Please fill in all fields")
+      return
+    }
+
+    const selectedVault = vaults.find(v => v.id === selectedVaultId)
+    if (!selectedVault) {
+      toast.error("Vault not found")
+      return
+    }
+
+    try {
+      const vaultAddress = selectedVault.address as `0x${string}`
+      // Get token address from addresses.json
+      let tokenOutAddress: string | null = null
+      const tokenInfo = Object.entries(addresses.testTokens).find(
+        ([key, value]: [string, any]) => value.symbol === selectedToken || value.name === selectedToken
+      )
+      if (tokenInfo) {
+        tokenOutAddress = (tokenInfo[1] as any).address
+      } else if (selectedToken === "WMNT") {
+        tokenOutAddress = addresses.contracts.WPC
+      }
+
+      if (!tokenOutAddress) {
+        toast.error(`Token address not found for ${selectedToken}`)
+        return
+      }
+
+      // USDC address (tokenIn)
+      const usdcAddress = addresses.testTokens.USDC.address as `0x${string}`
+      const tokenOutAddr = tokenOutAddress as `0x${string}`
+      
+      // Parse amount from dollars to wei
+      // User enters amount like "2" for 2 USDC, parseUnits converts to wei (18 decimals)
+      // Example: "2" -> 2000000000000000000 wei
+      const amountIn = parseUnits(amount, 18)
+      
+      // Step 1: Get vault address (proxy)
+      // Step 2: Read ValuationModule address from vault (proxy)
+      // Vault proxy has a view function that returns the ValuationModule address
+      const publicClient = getPublicClient()
+      
+      const valuationModuleAddress = await publicClient.readContract({
+        address: vaultAddress,
+        abi: CONTRACTS.AssetVault.abi,
+        functionName: "valuationModule",
+      }) as `0x${string}`
+      
+      // Step 3: Get price of output token from ValuationModule (proxy)
+      // ValuationModule proxy has the prices mapping
+      // Price is stored as: priceInBase (1e18 = 1 base asset unit)
+      // Example: if ETH price = 2500e18, it means 1 ETH = 2500 USDC
+      const tokenPrice = await publicClient.readContract({
+        address: valuationModuleAddress,
+        abi: CONTRACTS.ValuationModule.abi,
+        functionName: "prices",
+        args: [tokenOutAddr],
+      }) as bigint
+      
+      // Hardcode amountOutMin to 0.00049 ether
+      // 0.00049 ether = 0.00049 * 10^18 = 490000000000000 wei
+      const amountOutMin = parseUnits("0.00049", 18)
+      
+      const fee = 3000 // 0.3% fee tier (uint24)
+      const sqrtPriceLimitX96 = BigInt(0) // No price limit (uint160)
+
+      // Replicate exact encoding from test file:
+      // abi.encodeCall(DexAdapter.execute, (abi.encode(...), address(vault)))
+      //
+      // Step 1: Encode inner parameters using abi.encode
+      // This encodes: (address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint256 amountOutMin, uint160 sqrtPriceLimitX96)
+      console.log("📦 Inner Parameters (before encoding):", {
+        tokenIn: usdcAddress,
+        tokenOut: tokenOutAddr,
+        fee: fee,
+        amountIn: amountIn.toString(),
+        amountOutMin: amountOutMin.toString(),
+        sqrtPriceLimitX96: sqrtPriceLimitX96.toString(),
+      })
+      
+      // abi.encode(tokenIn, tokenOut, fee, amountIn, amountOutMin, sqrtPriceLimitX96)
+      const innerParams = encodeAbiParameters(
+        parseAbiParameters("address, address, uint24, uint256, uint256, uint160"),
+        [usdcAddress, tokenOutAddr, fee, amountIn, amountOutMin, sqrtPriceLimitX96]
+      )
+      console.log("📦 Encoded Inner Params (abi.encode):", innerParams)
+
+      // Step 2: Encode function call using abi.encodeCall equivalent
+      // abi.encodeCall(DexAdapter.execute, (innerParams, vaultAddress))
+      // This is equivalent to encoding: execute(bytes calldata params, address vault)
+      // Where params = innerParams and vault = vaultAddress
+      const swapParams = encodeFunctionData({
+        abi: CONTRACTS.DexAdapter.abi,
+        functionName: "execute",
+        args: [innerParams, vaultAddress],
+      })
+      console.log("📦 Encoded Swap Params (abi.encodeCall):", swapParams)
+
+      // Adapter ID is keccak256("DEX")
+      const adapterId = keccak256(toHex("DEX"))
+      console.log("📦 Adapter ID (keccak256('DEX')):", adapterId)
+
+      // Execute the adapter
+      console.log("🚀 executeAdapter Parameters:", {
+        vaultAddress: vaultAddress,
+        adapterId: adapterId,
+        params: swapParams,
+      })
+      
+      writeRebalance({
+        address: vaultAddress,
+        abi: CONTRACTS.AssetVault.abi,
+        functionName: "executeAdapter",
+        args: [adapterId, swapParams],
+      })
+
+      toast.info("Rebalance transaction submitted. Waiting for confirmation...")
+      setRebalanceDialogOpen(false)
+      setSelectedToken("")
+      setAmount("")
+    } catch (error: any) {
+      toast.error(`Failed to execute rebalance: ${error?.message || "Unknown error"}`)
+    }
   }
 
   const handleBuy = (token: string) => {
@@ -166,6 +598,20 @@ export default function VaultManagement() {
       toast.error(`Transaction failed: ${createError.message}`)
     }
   }, [createError, createVaultDialogOpen])
+
+  // Handle rebalance transaction success
+  useEffect(() => {
+    if (isRebalanceSuccess) {
+      toast.success("Rebalance executed successfully!")
+    }
+  }, [isRebalanceSuccess])
+
+  // Handle rebalance transaction error
+  useEffect(() => {
+    if (rebalanceError) {
+      toast.error(`Rebalance failed: ${rebalanceError.message}`)
+    }
+  }, [rebalanceError])
 
   const handleStopFund = (vaultId: number) => {
     setSelectedVaultId(vaultId)
@@ -237,9 +683,6 @@ export default function VaultManagement() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline">
-                    <Eye className="w-4 h-4" />
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -264,56 +707,15 @@ export default function VaultManagement() {
               </div>
 
               {isExpanded && (
-                <div className="mt-6 pt-6 border-t space-y-4">
-                  <h4 className="font-semibold text-foreground mb-4">Current Fund Holdings</h4>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Token</TableHead>
-                        <TableHead>Value</TableHead>
-                        <TableHead>USD Value</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {fundTokens.map((holding, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{holding.token}</TableCell>
-                          <TableCell>{holding.value}</TableCell>
-                          <TableCell>{holding.usdValue}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleBuy(holding.token)}
-                                className="bg-green-500/10 hover:bg-green-500/20 text-green-600 border-green-500/20"
-                              >
-                                Buy
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleSell(holding.token)}
-                                className="bg-red-500/10 hover:bg-red-500/20 text-red-600 border-red-500/20"
-                              >
-                                Sell
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  <div className="pt-4">
-                    <Button
-                      onClick={() => handleRebalance(vault.id)}
-                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                    >
-                      Rebalance Fund
-                    </Button>
-                  </div>
-                </div>
+                <VaultHoldings 
+                  vaultAddress={vault.address} 
+                  totalAssets={vault.totalAssets}
+                  TOKEN_MAP={TOKEN_MAP}
+                  tokenAddresses={tokenAddresses}
+                  handleBuy={handleBuy}
+                  handleSell={handleSell}
+                  handleRebalance={() => handleRebalance(vault.id)}
+                />
               )}
             </Card>
           )
@@ -330,10 +732,23 @@ export default function VaultManagement() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Available USDC Balance</label>
-              <div className="p-3 bg-muted rounded-md">
-                <p className="text-lg font-semibold">${usdcBalance} USDC</p>
+            <div className="flex items-center justify-between gap-4">
+              <label className="text-sm font-medium whitespace-nowrap">Available USDC Balance</label>
+              <div className="flex-1">
+                <p className="text-lg font-semibold text-primary text-right">
+                  {selectedVaultId ? (
+                    (() => {
+                      const selectedVault = vaults.find(v => v.id === selectedVaultId)
+                      return selectedVault ? (
+                        <USDCBalanceDisplay vaultAddress={selectedVault.address} />
+                      ) : (
+                        "Loading..."
+                      )
+                    })()
+                  ) : (
+                    "N/A"
+                  )}
+                </p>
               </div>
             </div>
             <div className="space-y-2">
@@ -342,17 +757,63 @@ export default function VaultManagement() {
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a token" />
                 </SelectTrigger>
-                <SelectContent>
-                  {availableTokens.map((token) => (
-                    <SelectItem key={token} value={token}>
-                      {token}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                  <SelectContent>
+                    {availableTokens.map((token) => {
+                      // Check testTokens first
+                      let tokenAddress: string | null = null
+                      const tokenInfo = Object.entries(addresses.testTokens).find(
+                        ([key, value]: [string, any]) => value.symbol === token || value.name === token
+                      )
+                      if (tokenInfo) {
+                        tokenAddress = (tokenInfo[1] as any).address
+                      } else if (token === "WMNT") {
+                        // Check contracts for WMNT
+                        tokenAddress = addresses.contracts.WPC
+                      }
+                      
+                      const formatAddress = (addr: string) => {
+                        return `${addr.slice(0, 6)}...${addr.slice(-4)}`
+                      }
+                      
+                      // Get price for this token
+                      // Price is stored as priceInBase (1e18 = 1 base asset unit)
+                      // Example: if price = 2500e18, it means 1 token = 2500 USDC
+                      const price = tokenPrices.get(token)
+                      let priceDisplay = "N/A"
+                      if (price && price > BigInt(0)) {
+                        const priceValue = formatUnits(price, 18)
+                        // Format to show reasonable decimal places
+                        const priceNum = Number(priceValue)
+                        if (priceNum >= 1000) {
+                          priceDisplay = `$${priceNum.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                        } else {
+                          priceDisplay = `$${priceNum.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                        }
+                      }
+                      
+                      return (
+                        <SelectItem key={token} value={token}>
+                          <div className="flex items-center justify-between w-full gap-4">
+                            <div className="flex items-center gap-2">
+                              <span>{token}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {priceDisplay}
+                              </span>
+                            </div>
+                            {tokenAddress && (
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {formatAddress(tokenAddress)}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Amount</label>
+              <label className="text-sm font-medium">Amount (in USDC)</label>
               <Input
                 type="number"
                 placeholder="Enter amount"
@@ -374,10 +835,17 @@ export default function VaultManagement() {
             </Button>
             <Button
               onClick={handleExecuteRebalance}
-              disabled={!selectedToken || !amount}
+              disabled={!selectedToken || !amount || isRebalancing || isRebalanceConfirming}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              Execute
+              {(isRebalancing || isRebalanceConfirming) && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isRebalancing
+                ? "Submitting..."
+                : isRebalanceConfirming
+                ? "Confirming..."
+                : "Execute"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,9 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import AppNavbar from "@/components/app-navbar"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useAllVaults } from "@/hooks/use-vaults"
 import { Loader2 } from "lucide-react"
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useReadContracts } from "wagmi"
+import { parseUnits, formatUnits, maxUint256 } from "viem"
+import { toast } from "sonner"
+import { CONTRACTS } from "@/lib/contracts"
+import addresses from "@/../addresses.json"
 import {
   Select,
   SelectContent,
@@ -39,20 +44,91 @@ const defaultFundData = {
   fees: "2% management fee, 20% performance fee",
 }
 
-// Mock fund token holdings
-const fundTokens = [
-  { token: "ETH", percentage: "35%", amount: "$1,470,000" },
-  { token: "BTC", percentage: "25%", amount: "$1,050,000" },
-  { token: "USDC", percentage: "20%", amount: "$840,000" },
-  { token: "MATIC", percentage: "12%", amount: "$504,000" },
-  { token: "LINK", percentage: "8%", amount: "$336,000" },
-]
 
 // Mock active proposals
 const activeProposals = [
   { id: 1, type: "Rebalance", description: "Reduce ETH allocation to 30%, increase BTC to 30%", votes: 45, status: "Active" },
   { id: 2, type: "Rebalance", description: "Add UNI token at 5% allocation", votes: 32, status: "Active" },
 ]
+
+// ERC20 ABI for approve, allowance, and balanceOf
+const ERC20_ABI = [
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "allowance",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "balanceOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const
+
+// Create token address to name mapping from addresses.json
+const createTokenMap = () => {
+  const tokenMap = new Map<string, { name: string; symbol: string; decimals: number }>()
+  
+  // Add tokens from testTokens
+  Object.entries(addresses.testTokens).forEach(([key, token]: [string, any]) => {
+    tokenMap.set(token.address.toLowerCase(), {
+      name: token.name,
+      symbol: token.symbol,
+      decimals: token.decimals,
+    })
+  })
+  
+  // Add WMNT from contracts
+  tokenMap.set(addresses.contracts.WPC.toLowerCase(), {
+    name: "WMNT",
+    symbol: "WMNT",
+    decimals: 18,
+  })
+  
+  // Add tokens from pools (token0 and token1)
+  Object.values(addresses.pools).forEach((pool: any) => {
+    // Add token0 if not already in map
+    const token0Lower = pool.token0.toLowerCase()
+    if (!tokenMap.has(token0Lower)) {
+      tokenMap.set(token0Lower, {
+        name: pool.token0Symbol,
+        symbol: pool.token0Symbol,
+        decimals: 18, // Default to 18
+      })
+    }
+    
+    // Add token1 if not already in map
+    const token1Lower = pool.token1.toLowerCase()
+    if (!tokenMap.has(token1Lower)) {
+      tokenMap.set(token1Lower, {
+        name: pool.token1Symbol,
+        symbol: pool.token1Symbol,
+        decimals: 18, // Default to 18
+      })
+    }
+  })
+  
+  return tokenMap
+}
+
+const TOKEN_MAP = createTokenMap()
 
 // Mock chart data with realistic variations
 const chartData = {
@@ -68,14 +144,171 @@ export default function FundPage() {
   const router = useRouter()
   const vaultAddress = params.address as string
   const { vaults, isLoading } = useAllVaults()
+  const { address, isConnected } = useAccount()
   const [duration, setDuration] = useState("1Y")
   const [amount, setAmount] = useState("")
+  const [isApproving, setIsApproving] = useState(false)
+  const [isDepositing, setIsDepositing] = useState(false)
 
   // Find the current vault by address
   const currentVault = useMemo(() => {
     if (!vaultAddress || !vaults) return null
     return vaults.find((v) => v.address.toLowerCase() === vaultAddress.toLowerCase())
   }, [vaultAddress, vaults])
+
+  // Get base asset address (USDC) from vault
+  const baseAssetAddress = useMemo(() => {
+    if (!currentVault) return null
+    return currentVault.baseAsset as `0x${string}`
+  }, [currentVault])
+
+  // Check USDC allowance
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: baseAssetAddress || undefined,
+    abi: ERC20_ABI,
+    functionName: "allowance",
+    args: address && vaultAddress && baseAssetAddress ? [address, vaultAddress as `0x${string}`] : undefined,
+    query: {
+      enabled: !!address && !!vaultAddress && !!baseAssetAddress && isConnected,
+    },
+  })
+
+  const { writeContract: writeApprove, data: approveHash } = useWriteContract()
+  const { writeContract: writeDeposit, data: depositHash } = useWriteContract()
+
+  const { isLoading: isApprovingTx, isSuccess: isApproveSuccess } = useWaitForTransactionReceipt({
+    hash: approveHash,
+  })
+
+  const { isLoading: isDepositingTx, isSuccess: isDepositSuccess } = useWaitForTransactionReceipt({
+    hash: depositHash,
+  })
+
+  // Handle approve success
+  useEffect(() => {
+    if (isApproveSuccess) {
+      toast.success("USDC approved successfully!")
+      setIsApproving(false)
+      refetchAllowance()
+    }
+  }, [isApproveSuccess, refetchAllowance])
+
+  // Handle deposit success
+  useEffect(() => {
+    if (isDepositSuccess) {
+      toast.success(`Successfully deposited ${amount} USDC!`)
+      setIsDepositing(false)
+      setAmount("")
+    }
+  }, [isDepositSuccess, amount])
+
+  const handleDeposit = async () => {
+    if (!isConnected || !address || !currentVault || !amount || parseFloat(amount) <= 0) {
+      return
+    }
+
+    try {
+      const depositAmount = parseUnits(amount, 18) // USDC has 18 decimals
+      setIsDepositing(true)
+      toast.info("Depositing USDC...")
+
+      writeDeposit(
+        {
+          address: vaultAddress as `0x${string}`,
+          abi: CONTRACTS.AssetVault.abi,
+          functionName: "deposit",
+          args: [depositAmount, address],
+        },
+        {
+          onSuccess: () => {
+            toast.info("Waiting for deposit confirmation...")
+          },
+          onError: (error) => {
+            toast.error(`Deposit failed: ${error.message}`)
+            setIsDepositing(false)
+          },
+        }
+      )
+    } catch (error: any) {
+      toast.error(`Deposit failed: ${error.message}`)
+      setIsDepositing(false)
+    }
+  }
+
+  const handleInvest = async () => {
+    if (!isConnected || !address) {
+      toast.error("Please connect your wallet first")
+      return
+    }
+
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error("Please enter a valid amount")
+      return
+    }
+
+    if (!currentVault) {
+      toast.error("Vault not found")
+      return
+    }
+
+    try {
+      const depositAmount = parseUnits(amount, 18) // USDC has 18 decimals
+      const currentAllowance = allowance || BigInt(0)
+
+      // Check if approval is needed
+      if (currentAllowance < depositAmount) {
+        // First, approve USDC
+        setIsApproving(true)
+        toast.info("Approving USDC...")
+
+        if (!baseAssetAddress) {
+          toast.error("Base asset address not found")
+          setIsApproving(false)
+          return
+        }
+
+        writeApprove(
+          {
+            address: baseAssetAddress,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [vaultAddress as `0x${string}`, maxUint256], // Approve max for convenience
+          },
+          {
+            onSuccess: () => {
+              toast.info("Waiting for approval confirmation...")
+            },
+            onError: (error) => {
+              toast.error(`Approval failed: ${error.message}`)
+              setIsApproving(false)
+            },
+          }
+        )
+
+        // Wait for approval to complete before depositing
+        // The deposit will be triggered after approval success
+        return
+      }
+
+      // If already approved, proceed with deposit
+      handleDeposit()
+    } catch (error: any) {
+      toast.error(`Transaction failed: ${error.message}`)
+      setIsApproving(false)
+      setIsDepositing(false)
+    }
+  }
+
+  // Trigger deposit after approval succeeds
+  useEffect(() => {
+    if (isApproveSuccess && isApproving && amount && !isDepositing) {
+      setIsApproving(false)
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        handleDeposit()
+      }, 1000)
+    }
+  }, [isApproveSuccess])
 
   // Get similar vaults (other vaults excluding current)
   const similarVaults = useMemo(() => {
@@ -91,6 +324,68 @@ export default function FundPage() {
         aum: v.aum,
       }))
   }, [vaults, currentVault, vaultAddress])
+
+  // Get all unique token addresses to check balances
+  const tokenAddresses = useMemo(() => {
+    return Array.from(TOKEN_MAP.keys()).map(addr => addr as `0x${string}`)
+  }, [])
+
+  // Get balances for all tokens in the vault
+  const balanceContracts = useMemo(() => {
+    if (!vaultAddress) return []
+    return tokenAddresses.map((tokenAddr) => ({
+      address: tokenAddr,
+      abi: ERC20_ABI,
+      functionName: "balanceOf" as const,
+      args: [vaultAddress as `0x${string}`],
+    }))
+  }, [vaultAddress, tokenAddresses])
+
+  const { data: balanceResults, isLoading: balancesLoading } = useReadContracts({
+    contracts: balanceContracts,
+    query: {
+      enabled: balanceContracts.length > 0 && !!vaultAddress,
+    },
+  })
+
+  // Calculate vault holdings with percentages
+  const vaultHoldings = useMemo(() => {
+    if (!balanceResults || !currentVault || !currentVault.totalAssets) return []
+    
+    const holdings: Array<{ token: string; percentage: string; amount: string }> = []
+    const totalAssets = currentVault.totalAssets
+    
+    balanceResults.forEach((result, index) => {
+      if (result.status === "success" && result.result) {
+        const balance = result.result as bigint
+        const tokenAddress = tokenAddresses[index]
+        const tokenInfo = TOKEN_MAP.get(tokenAddress.toLowerCase())
+        
+        if (tokenInfo && balance > BigInt(0)) {
+          const balanceFormatted = formatUnits(balance, tokenInfo.decimals)
+          const balanceValue = Number(balanceFormatted)
+          const totalAssetsValue = Number(formatUnits(totalAssets, 18))
+          
+          // Calculate percentage (assuming 1:1 value for simplicity, or use actual pricing)
+          const percentage = totalAssetsValue > 0 
+            ? ((balanceValue / totalAssetsValue) * 100).toFixed(2)
+            : "0.00"
+          
+          // Format amount in USD (simplified - would need actual token prices)
+          const amountUSD = `$${(balanceValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          
+          holdings.push({
+            token: tokenInfo.symbol,
+            percentage: `${percentage}%`,
+            amount: amountUSD,
+          })
+        }
+      }
+    })
+    
+    // Sort by percentage descending
+    return holdings.sort((a, b) => parseFloat(b.percentage) - parseFloat(a.percentage))
+  }, [balanceResults, currentVault, tokenAddresses])
 
   // Map vault data to fund data format
   const fundData = useMemo(() => {
@@ -224,25 +519,55 @@ export default function FundPage() {
               </div>
             </Card>
 
-            {/* Buy Section */}
+            {/* Invest Section */}
             <Card className="p-6">
-              <h2 className="text-xl font-bold text-foreground mb-4">Invest in this Fund</h2>
+              <h2 className="text-xl font-bold text-foreground mb-4">Invest Amount (in USDC)</h2>
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
                   <label className="text-sm font-medium text-foreground whitespace-nowrap">
-                    Investment Amount
+                    Investment Amount (USDC)
                   </label>
                   <Input
                     type="number"
-                    placeholder="Enter amount"
+                    placeholder="Enter amount in USDC"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     className="flex-1 border-2 border-border"
+                    disabled={isApproving || isDepositing || isApprovingTx || isDepositingTx}
                   />
                 </div>
-                <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                  Buy Now
+                <Button
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={handleInvest}
+                  disabled={
+                    !isConnected ||
+                    !amount ||
+                    parseFloat(amount) <= 0 ||
+                    isApproving ||
+                    isDepositing ||
+                    isApprovingTx ||
+                    isDepositingTx
+                  }
+                >
+                  {isApproving || isApprovingTx ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Approving USDC...
+                    </>
+                  ) : isDepositing || isDepositingTx ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Depositing...
+                    </>
+                  ) : (
+                    "Invest Now"
+                  )}
                 </Button>
+                {!isConnected && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Please connect your wallet to invest
+                  </p>
+                )}
               </div>
             </Card>
 
@@ -286,24 +611,33 @@ export default function FundPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground mb-4">Current Holdings</h3>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Token</TableHead>
-                        <TableHead>Current Percentage</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {fundTokens.map((holding, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{holding.token}</TableCell>
-                          <TableCell>{holding.percentage}</TableCell>
-                          <TableCell className="text-right">{holding.amount}</TableCell>
+                  {balancesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                      <span className="ml-2 text-muted-foreground">Loading holdings...</span>
+                    </div>
+                  ) : vaultHoldings.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Token</TableHead>
+                          <TableHead>Current Percentage</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {vaultHoldings.map((holding, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{holding.token}</TableCell>
+                            <TableCell>{holding.percentage}</TableCell>
+                            <TableCell className="text-right">{holding.amount}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4">No holdings found</p>
+                  )}
                 </div>
                 <div className="pt-4 border-t">
                   <p className="text-sm text-muted-foreground mb-4">

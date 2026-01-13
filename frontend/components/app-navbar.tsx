@@ -77,6 +77,12 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
           </div>
 
           <div className="flex items-center gap-4 ml-auto">
+            <Link
+              href="/app/claim"
+              className="hidden sm:flex text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+            >
+              Claim Testnet funds
+            </Link>
             <div className="hidden sm:flex relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
