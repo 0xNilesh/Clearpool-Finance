@@ -468,16 +468,16 @@ export default function VaultManagement() {
       // ValuationModule proxy has the prices mapping
       // Price is stored as: priceInBase (1e18 = 1 base asset unit)
       // Example: if ETH price = 2500e18, it means 1 ETH = 2500 USDC
-      const tokenPrice = await publicClient.readContract({
-        address: valuationModuleAddress,
-        abi: CONTRACTS.ValuationModule.abi,
-        functionName: "prices",
-        args: [tokenOutAddr],
-      }) as bigint
+      // const tokenPrice = await publicClient.readContract({
+      //   address: valuationModuleAddress,
+      //   abi: CONTRACTS.ValuationModule.abi,
+      //   functionName: "prices",
+      //   args: [tokenOutAddr],
+      // }) as bigint
       
       // Hardcode amountOutMin to 0.00049 ether
       // 0.00049 ether = 0.00049 * 10^18 = 490000000000000 wei
-      const amountOutMin = parseUnits("0.00049", 18)
+      const amountOutMin = BigInt(0)
       
       const fee = 3000 // 0.3% fee tier (uint24)
       const sqrtPriceLimitX96 = BigInt(0) // No price limit (uint160)

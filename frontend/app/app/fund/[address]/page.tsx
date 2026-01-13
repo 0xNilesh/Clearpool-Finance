@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import AppNavbar from "@/components/app-navbar"
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useAllVaults } from "@/hooks/use-vaults"
 import { Loader2 } from "lucide-react"
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useReadContracts } from "wagmi"
@@ -149,6 +149,7 @@ export default function FundPage() {
   const [amount, setAmount] = useState("")
   const [isApproving, setIsApproving] = useState(false)
   const [isDepositing, setIsDepositing] = useState(false)
+  const depositLoggedRef = useRef<string | null>(null) // Track logged transaction hashes to prevent duplicate API calls
 
   // Find the current vault by address
   const currentVault = useMemo(() => {
@@ -180,8 +181,28 @@ export default function FundPage() {
     hash: approveHash,
   })
 
-  const { isLoading: isDepositingTx, isSuccess: isDepositSuccess } = useWaitForTransactionReceipt({
+  const { isLoading: isDepositingTx, isSuccess: isDepositSuccess, data: depositReceipt } = useWaitForTransactionReceipt({
     hash: depositHash,
+  })
+
+  // Read vault totalSupply before deposit to calculate shares received
+  const { data: totalSupplyBefore, refetch: refetchTotalSupplyBefore } = useReadContract({
+    address: vaultAddress as `0x${string}`,
+    abi: CONTRACTS.AssetVault.abi,
+    functionName: "totalSupply",
+    query: {
+      enabled: !!vaultAddress && isConnected,
+    },
+  })
+
+  // Read vault totalSupply after deposit
+  const { data: totalSupplyAfter, refetch: refetchTotalSupplyAfter } = useReadContract({
+    address: vaultAddress as `0x${string}`,
+    abi: CONTRACTS.AssetVault.abi,
+    functionName: "totalSupply",
+    query: {
+      enabled: !!vaultAddress && isConnected && isDepositSuccess,
+    },
   })
 
   // Handle approve success
@@ -193,14 +214,102 @@ export default function FundPage() {
     }
   }, [isApproveSuccess, refetchAllowance])
 
-  // Handle deposit success
+  // Read previewDeposit to calculate shares that will be received
+  const { data: previewShares } = useReadContract({
+    address: vaultAddress as `0x${string}`,
+    abi: CONTRACTS.AssetVault.abi,
+    functionName: "previewDeposit",
+    args: amount ? [parseUnits(amount, 18)] : undefined,
+    query: {
+      enabled: !!vaultAddress && !!amount && parseFloat(amount) > 0 && isConnected,
+    },
+  })
+
+  // Handle deposit success - ONLY call API when transaction is confirmed successful
   useEffect(() => {
-    if (isDepositSuccess) {
+    // Only proceed if transaction is successful, we have receipt, and we haven't logged this transaction yet
+    const txHash = depositReceipt?.transactionHash
+    if (
+      isDepositSuccess && 
+      depositReceipt && 
+      txHash &&
+      address && 
+      vaultAddress && 
+      amount &&
+      depositLoggedRef.current !== txHash // Prevent duplicate calls
+    ) {
+      // Mark this transaction as being logged
+      depositLoggedRef.current = txHash
+
+      const logDeposit = async () => {
+        try {
+          // Wait for blockchain state to update after transaction confirmation
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          
+          // Refetch totalSupply to get updated value after deposit
+          await refetchTotalSupplyAfter()
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
+          // Calculate shares received from totalSupply difference
+          let sharesReceived: number
+          
+          if (totalSupplyAfter && totalSupplyBefore && typeof totalSupplyAfter === 'bigint' && typeof totalSupplyBefore === 'bigint') {
+            // Convert both from wei, then subtract
+            const totalSupplyAfterNum = Number(formatUnits(totalSupplyAfter, 18))
+            const totalSupplyBeforeNum = Number(formatUnits(totalSupplyBefore, 18))
+            sharesReceived = totalSupplyAfterNum - totalSupplyBeforeNum
+          } else {
+            // Fallback: use previewDeposit if available
+            if (previewShares && typeof previewShares === 'bigint') {
+              sharesReceived = Number(formatUnits(previewShares, 18))
+            } else {
+              sharesReceived = parseFloat(amount) // Final fallback: assume 1:1
+            }
+          }
+
+          // Call deposit API - ONLY ONCE after successful transaction
+          const response = await fetch('/api/deposit', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              userAddress: address,
+              vaultAddress: vaultAddress,
+              amount: amount,
+              shares: sharesReceived.toString(),
+              transactionHash: txHash,
+              blockNumber: depositReceipt.blockNumber?.toString(),
+              timestamp: new Date(),
+            }),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            console.error('Failed to log deposit:', error)
+            toast.error('Deposit successful but failed to log in database')
+            // Reset ref on error so we can retry if needed
+            depositLoggedRef.current = null
+          } else {
+            console.log('Deposit logged successfully')
+          }
+        } catch (error) {
+          console.error('Error logging deposit:', error)
+          toast.error('Deposit successful but failed to log in database')
+          // Reset ref on error so we can retry if needed
+          depositLoggedRef.current = null
+        }
+      }
+
+      // Show success toast immediately
       toast.success(`Successfully deposited ${amount} USDC!`)
       setIsDepositing(false)
       setAmount("")
+      
+      // Log deposit to API
+      logDeposit()
     }
-  }, [isDepositSuccess, amount])
+  }, [isDepositSuccess, depositReceipt?.transactionHash, address, vaultAddress, amount, refetchTotalSupplyAfter, totalSupplyAfter, totalSupplyBefore, previewShares])
 
   const handleDeposit = async () => {
     if (!isConnected || !address || !currentVault || !amount || parseFloat(amount) <= 0) {
@@ -210,6 +319,13 @@ export default function FundPage() {
     try {
       const depositAmount = parseUnits(amount, 18) // USDC has 18 decimals
       setIsDepositing(true)
+      
+      // Reset the logged ref when starting a new deposit
+      depositLoggedRef.current = null
+      
+      // Capture totalSupply before deposit for share calculation
+      await refetchTotalSupplyBefore()
+      
       toast.info("Depositing USDC...")
 
       writeDeposit(
@@ -226,6 +342,8 @@ export default function FundPage() {
           onError: (error) => {
             toast.error(`Deposit failed: ${error.message}`)
             setIsDepositing(false)
+            // Reset ref on error
+            depositLoggedRef.current = null
           },
         }
       )

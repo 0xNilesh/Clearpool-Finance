@@ -6,18 +6,18 @@
   },
   "contracts": {
     "factory": "0x4c79A13451E7c338aF1798DD15d6e6d8888b9637",
-    "vaultFactory": "0x301Ee7939Fb940660Bdd86103f97a95b5A719F37",
+    "vaultFactory": "0x4F532db1ce4f33170b21F6a97A8973e9499BbD75",
     "implementations": {
-      "AssetVault": "0xcBBBD2Afd9A72b66A7958e00942a9D1C3E1A8575",
+      "AssetVault": "0xC107Bf787cba6BD5d68b528e7e5ae085f8e3E7D5",
       "AdapterRegistry": "0xcB3458cbbc60D8D1C6Ca20726928fEE8BD7542c7",
-      "ValuationModule": "0xD19EFCAb4d9961F48647E5FC527BD3B947a87dD8",
-      "PerformanceFee": "0x263097512bb0CC36951bC8Fa8fE13F26E05E4548",
-      "GovernanceModule": "0x7AD7742648A5e7eD93F6595A6200a6D43d52f95f"
+      "ValuationModule": "0x3c7C8F0f798A241A06Cc1fbc1E784412386Ae697",
+      "PerformanceFee": "0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395",
+      "GovernanceModule": "0xc0356fa9B4766c6b1561eC98AF78Ab7A3b284B88"
     },
     "core": {
-      "VaultFactory": "0x301Ee7939Fb940660Bdd86103f97a95b5A719F37",
+      "VaultFactory": "0x4F532db1ce4f33170b21F6a97A8973e9499BbD75",
       "UniswapV3Integration": "0x0Fd4a5CABcDc2a4e9E6ba53a723e6e399f9AB913",
-      "DexAdapter": "0xc5451D068147e30836464425Ed79890b0b294E26"
+      "DexAdapter": "0xe1327FE9b457Ad1b4601FdD2afcAdAef198d6BA6"
     },
     "swapRouter": "0xE175E3aBa428d028D2CEdE8e1cB338D1f1D50d13",
     "positionManager": "0x790aCC1035679c98fe7cE362451b14A6285EA0eE",

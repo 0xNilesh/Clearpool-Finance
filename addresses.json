@@ -23,7 +23,7 @@
     "deployer": "0x778D3206374f8AC265728E18E3fE2Ae6b93E4ce4",
     "implementations": {
       "AssetVault": "0xC107Bf787cba6BD5d68b528e7e5ae085f8e3E7D5",
-      "AdapterRegistry": "0x09676C46aaE81a2E0e13ce201040400765BFe329",
+      "AdapterRegistry": "0xcB3458cbbc60D8D1C6Ca20726928fEE8BD7542c7",
       "ValuationModule": "0x3c7C8F0f798A241A06Cc1fbc1E784412386Ae697",
       "PerformanceFee": "0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395",
       "GovernanceModule": "0xc0356fa9B4766c6b1561eC98AF78Ab7A3b284B88"
