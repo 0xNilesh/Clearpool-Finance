@@ -3,12 +3,57 @@
 import Image from "next/image"
 import { TrendingUp, Users, BarChart3, Shield, ArrowRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { useAllVaults } from "@/hooks/use-vaults"
+import { useMemo } from "react"
+import { formatUnits } from "viem"
 
 export default function AppBanner() {
+  const { vaults, isLoading } = useAllVaults()
+
+  // Calculate total AUM from all vaults
+  const totalAUM = useMemo(() => {
+    if (!vaults || vaults.length === 0) return "$0.00"
+    const total = vaults.reduce((sum, vault) => {
+      if (vault.totalAssets) {
+        return sum + Number(formatUnits(vault.totalAssets, 18))
+      }
+      return sum
+    }, 0)
+    
+    // Format based on size
+    if (total >= 1_000_000) {
+      return `$${(total / 1_000_000).toFixed(2)}M`
+    } else if (total >= 1_000) {
+      return `$${(total / 1_000).toFixed(2)}K`
+    } else {
+      return `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+  }, [vaults])
+
+  // Count active funds
+  const activeFunds = useMemo(() => {
+    return vaults.length > 0 ? `${vaults.length}` : "0"
+  }, [vaults])
+
+  // Calculate average returns (using the same random return logic)
+  const avgReturns = useMemo(() => {
+    if (!vaults || vaults.length === 0) return "+0.00%"
+    
+    // Generate random return for each vault (3-6%) and calculate average
+    const returns = vaults.map((vault) => {
+      const hash = vault.address.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      const seed = hash % 1000
+      return 3.0 + (seed / 1000) * 3.0
+    })
+    
+    const avg = returns.reduce((sum, r) => sum + r, 0) / returns.length
+    return `+${avg.toFixed(2)}%`
+  }, [vaults])
+
   const stats = [
-    { icon: TrendingUp, label: "Total AUM", value: "$950K" },
-    { icon: Users, label: "Active Funds", value: "15+" },
-    { icon: BarChart3, label: "Avg Returns", value: "+18.5%" },
+    { icon: TrendingUp, label: "Total AUM", value: isLoading ? "Loading..." : totalAUM },
+    { icon: Users, label: "Active Funds", value: isLoading ? "..." : activeFunds },
+    { icon: BarChart3, label: "Avg Returns", value: isLoading ? "..." : avgReturns },
     { icon: Shield, label: "Secure Platform", value: "100%" },
   ]
 

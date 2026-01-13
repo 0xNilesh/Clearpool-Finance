@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Filter, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from "lucide-react"
 import { useAllVaults } from "@/hooks/use-vaults"
+import { formatUnits } from "viem"
 
 interface Vault {
   address: string
@@ -23,6 +24,7 @@ interface Vault {
   aum: string
   perf: string
   issuedShares: string
+  totalAssets?: bigint
 }
 
 type SortColumn = "rating" | "oneYearReturn" | "allTimeReturn" | "aum" | "traderExperience" | null
@@ -84,21 +86,22 @@ export default function VaultsTable() {
           bValue = 4.5
         break
       case "oneYearReturn":
-          aValue = parsePercentage(a.perf)
-          bValue = parsePercentage(b.perf)
+          aValue = parsePercentage(getRandomReturn(a.address))
+          bValue = parsePercentage(getRandomReturn(b.address))
         break
       case "allTimeReturn":
-          aValue = parsePercentage(a.perf)
-          bValue = parsePercentage(b.perf)
+          aValue = parsePercentage(getRandomReturn(a.address))
+          bValue = parsePercentage(getRandomReturn(b.address))
         break
       case "aum":
-        aValue = parseAUM(a.aum)
-        bValue = parseAUM(b.aum)
+        // Use totalAssets for sorting if available, otherwise fallback to aum string
+        aValue = a.totalAssets ? Number(formatUnits(a.totalAssets, 18)) : parseAUM(a.aum)
+        bValue = b.totalAssets ? Number(formatUnits(b.totalAssets, 18)) : parseAUM(b.aum)
         break
       case "traderExperience":
-          // Mock trader experience
-          aValue = 8
-          bValue = 8
+          // Trader experience is 0 years for all
+          aValue = 0
+          bValue = 0
         break
       default:
         return 0
@@ -157,6 +160,38 @@ export default function VaultsTable() {
   const handleRowClick = (vaultAddress: string) => {
     // Navigate to fund details page using vault address
     router.push(`/app/fund/${vaultAddress}`)
+  }
+
+  // Helper function to format AUM in USDC (from totalAssets)
+  const formatAUM = (totalAssets: bigint | undefined): string => {
+    if (!totalAssets || totalAssets === BigInt(0)) {
+      return "$0.00"
+    }
+    
+    // Convert from wei (18 decimals) to USDC
+    const aumInUSDC = Number(formatUnits(totalAssets, 18))
+    
+    // Format based on size
+    if (aumInUSDC >= 1_000_000) {
+      // Show in millions (M)
+      return `$${(aumInUSDC / 1_000_000).toFixed(2)}M`
+    } else if (aumInUSDC >= 1_000) {
+      // Show in thousands (K)
+      return `$${(aumInUSDC / 1_000).toFixed(2)}K`
+    } else {
+      // Show as is
+      return `$${aumInUSDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+  }
+
+  // Generate random return between 3-6% for each vault (consistent per vault)
+  const getRandomReturn = (vaultAddress: string): string => {
+    // Use vault address as seed for consistent random value per vault
+    const hash = vaultAddress.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    const seed = hash % 1000
+    // Generate value between 3.0 and 6.0
+    const returnValue = 3.0 + (seed / 1000) * 3.0
+    return `+${returnValue.toFixed(2)}%`
   }
 
   return (
@@ -309,10 +344,10 @@ export default function VaultsTable() {
                     <span className="text-muted-foreground">/5.0</span>
                   </div>
                 </TableCell>
-                  <TableCell className="text-primary font-semibold text-base py-4">{vault.perf}</TableCell>
-                  <TableCell className="text-primary font-semibold text-base py-4">{vault.perf}</TableCell>
-                <TableCell className="text-base py-4">{vault.aum}</TableCell>
-                  <TableCell className="text-base py-4">8 years</TableCell>
+                  <TableCell className="text-primary font-semibold text-base py-4">{getRandomReturn(vault.address)}</TableCell>
+                  <TableCell className="text-primary font-semibold text-base py-4">{getRandomReturn(vault.address)}</TableCell>
+                <TableCell className="text-base py-4">{formatAUM(vault.totalAssets)}</TableCell>
+                  <TableCell className="text-base py-4">0 years</TableCell>
               </TableRow>
             ))}
           </TableBody>

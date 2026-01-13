@@ -16,7 +16,7 @@ Before you begin, you'll need:
 
 ## Connecting Your Wallet
 
-1. Visit the [Clearpool Finance App](https://app.clearpool.finance)
+1. Visit the [Clearpool Finance App](https://tryclearpool.vercel.app/app)
 2. Click on "Sign In" or "Get Started" button
 3. Select your wallet from the connection modal
 4. Approve the connection request in your wallet

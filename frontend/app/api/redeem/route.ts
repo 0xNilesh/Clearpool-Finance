@@ -55,12 +55,37 @@ export async function POST(request: NextRequest) {
       timestamp: now,
     }
 
-    // Calculate new totals
+    // Calculate new totals - share market logic
     const updatedOrders = [...(existingPosition.orders || []), redeemOrder]
     const totalShares = currentShares - sharesToRedeem
-    // For invested value, we keep it the same (we don't reduce it on redeem)
-    // Or we could calculate based on the amount received
-    const totalInvestedValue = existingPosition.totalInvestedValue || 0
+    
+    // Share market logic: When you sell shares, you keep the same average cost per share
+    // So we reduce invested value proportionally to maintain the average cost basis
+    const currentInvestedValue = existingPosition.totalInvestedValue || 0
+    let totalInvestedValue = currentInvestedValue
+    
+    // Calculate average cost per share before redemption
+    if (currentShares > 0 && currentInvestedValue > 0) {
+      const averageCostPerShare = currentInvestedValue / currentShares
+      
+      // Reduce invested value by the proportion of shares redeemed
+      // This maintains the same average cost per share for remaining shares
+      const investedValueRedeemed = sharesToRedeem * averageCostPerShare
+      totalInvestedValue = currentInvestedValue - investedValueRedeemed
+      
+      // Ensure it doesn't go negative
+      if (totalInvestedValue < 0) {
+        totalInvestedValue = 0
+      }
+      
+      // If all shares are redeemed, invested value should be 0
+      if (totalShares <= 0) {
+        totalInvestedValue = 0
+      }
+    } else {
+      // If no shares or no invested value, set to 0
+      totalInvestedValue = 0
+    }
 
     await collection.updateOne(
       { _id: existingPosition._id },

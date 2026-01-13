@@ -38,7 +38,7 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
   const tabs = [
     { id: "explore", label: "Explore" },
     { id: "portfolio", label: "Portfolio" },
-    { id: "watchlist", label: "Watchlist" },
+    { id: "documentation", label: "Documentation" },
   ]
 
   return (
@@ -59,11 +59,18 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
             {tabs.map((tab) => {
               const isActive = pathname === "/app/portfolio" 
                 ? tab.id === "portfolio"
+                : pathname?.startsWith("/docs")
+                ? tab.id === "documentation"
                 : pathname === "/app" && tab.id === "explore"
+              const href = tab.id === "portfolio" 
+                ? "/app/portfolio" 
+                : tab.id === "documentation"
+                ? "/docs/intro"
+                : "/app"
               return (
                 <Link
                 key={tab.id}
-                  href={tab.id === "portfolio" ? "/app/portfolio" : "/app"}
+                  href={href}
                 className={`text-sm font-medium pb-2 border-b-2 transition ${
                     isActive
                     ? "border-primary text-primary"

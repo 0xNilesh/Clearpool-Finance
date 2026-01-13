@@ -9,11 +9,23 @@ import AppNavbar from "@/components/app-navbar"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { useAllVaults } from "@/hooks/use-vaults"
 import { Loader2 } from "lucide-react"
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useReadContracts } from "wagmi"
-import { parseUnits, formatUnits, maxUint256 } from "viem"
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, useReadContracts, usePublicClient } from "wagmi"
+import { parseUnits, formatUnits, maxUint256, decodeEventLog } from "viem"
 import { toast } from "sonner"
 import { CONTRACTS } from "@/lib/contracts"
 import addresses from "@/../addresses.json"
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip as ChartTooltip,
+  Legend,
+  Filler,
+} from 'chart.js'
+import { Line } from 'react-chartjs-2'
 import {
   Select,
   SelectContent,
@@ -45,11 +57,8 @@ const defaultFundData = {
 }
 
 
-// Mock active proposals
-const activeProposals = [
-  { id: 1, type: "Rebalance", description: "Reduce ETH allocation to 30%, increase BTC to 30%", votes: 45, status: "Active" },
-  { id: 2, type: "Rebalance", description: "Add UNI token at 5% allocation", votes: 32, status: "Active" },
-]
+// Mock active proposals - empty for now
+const activeProposals: Array<{ id: number; type: string; description: string; votes: number; status: string }> = []
 
 // ERC20 ABI for approve, allowance, and balanceOf
 const ERC20_ABI = [
@@ -130,13 +139,107 @@ const createTokenMap = () => {
 
 const TOKEN_MAP = createTokenMap()
 
-// Mock chart data with realistic variations
-const chartData = {
-  "1M": [120, 118, 122, 125, 123, 128, 130, 127, 132, 135, 133, 138, 140, 137, 142, 145, 143, 148, 150, 147, 152, 155, 153, 158, 160, 157, 162, 165],
-  "3M": [100, 105, 102, 108, 110, 107, 112, 115, 113, 118, 120, 117, 122, 125, 123, 128, 130, 127, 132, 135, 133, 138, 140, 137, 142, 145, 143, 148, 150, 147, 152, 155, 153, 158, 160, 157, 162, 165, 163, 168, 170, 167, 172, 175, 173, 178, 180],
-  "6M": [80, 82, 79, 85, 88, 85, 90, 92, 89, 95, 98, 95, 100, 102, 99, 105, 108, 105, 110, 112, 109, 115, 118, 115, 120, 122, 119, 125, 128, 125, 130, 132, 129, 135, 138, 135, 140, 142, 139, 145, 148, 145, 150, 152, 149, 155, 158, 155, 160, 162, 159, 165, 168, 165, 170, 172, 169, 175, 178, 175, 180, 182, 179, 185, 188, 185, 190, 192, 189, 195],
-  "1Y": [50, 52, 48, 55, 58, 55, 60, 62, 59, 65, 68, 65, 70, 72, 69, 75, 78, 75, 80, 82, 79, 85, 88, 85, 90, 92, 89, 95, 98, 95, 100, 102, 99, 105, 108, 105, 110, 112, 109, 115, 118, 115, 120, 122, 119, 125, 128, 125, 130, 132, 129, 135, 138, 135, 140, 142, 139, 145, 148, 145, 150, 152, 149, 155, 158, 155, 160, 162, 159, 165, 168, 165, 170, 172, 169, 175, 178, 175, 180, 182, 179, 185, 188, 185, 190, 192, 189, 195, 198, 195, 200, 202, 199, 205, 208, 205, 210, 212, 209, 215, 218, 215, 220, 222, 219, 225, 228, 225, 230, 232, 229, 235, 238, 235, 240, 242, 239, 245, 248, 245, 250, 252, 249, 255, 258, 255, 260, 262, 259, 265, 268, 265, 270, 272, 269, 275, 278, 275, 280, 282, 279, 285, 288, 285, 290, 292, 289, 295, 298, 295, 300, 302, 299, 305],
-  "All": [20, 22, 18, 25, 28, 25, 30, 32, 29, 35, 38, 35, 40, 42, 39, 45, 48, 45, 50, 52, 49, 55, 58, 55, 60, 62, 59, 65, 68, 65, 70, 72, 69, 75, 78, 75, 80, 82, 79, 85, 88, 85, 90, 92, 89, 95, 98, 95, 100, 102, 99, 105, 108, 105, 110, 112, 109, 115, 118, 115, 120, 122, 119, 125, 128, 125, 130, 132, 129, 135, 138, 135, 140, 142, 139, 145, 148, 145, 150, 152, 149, 155, 158, 155, 160, 162, 159, 165, 168, 165, 170, 172, 169, 175, 178, 175, 180, 182, 179, 185, 188, 185, 190, 192, 189, 195, 198, 195, 200, 202, 199, 205, 208, 205, 210, 212, 209, 215, 218, 215, 220, 222, 219, 225, 228, 225, 230, 232, 229, 235, 238, 235, 240, 242, 239, 245, 248, 245, 250, 252, 249, 255, 258, 255, 260, 262, 259, 265, 268, 265, 270, 272, 269, 275, 278, 275, 280, 282, 279, 285, 288, 285, 290, 292, 289, 295, 298, 295, 300, 302, 299, 305, 308, 305, 310, 312, 309, 315, 318, 315, 320, 322, 319, 325, 328, 325, 330, 332, 329, 335, 338, 335, 340, 342, 339, 345, 348, 345, 350, 352, 349, 355, 358, 355, 360, 362, 359, 365, 368, 365, 370, 372, 369, 375, 378, 375, 380, 382, 379, 385, 388, 385, 390, 392, 389, 395, 398, 395, 400, 402, 399, 405, 408, 405, 410, 412, 409, 415, 418, 415, 420, 422, 419, 425, 428, 425, 430, 432, 429, 435, 438, 435, 440, 442, 439, 445, 448, 445, 450, 452, 449, 455, 458, 455, 460, 462, 459, 465, 468, 465, 470, 472, 469, 475, 478, 475, 480, 482, 479, 485, 488, 485, 490, 492, 489, 495, 498, 495, 500],
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  ChartTooltip,
+  Legend,
+  Filler
+)
+
+// Helper function to generate consistent random return for a vault (returns percentage as string)
+const getRandomReturn = (vaultAddress: string): string => {
+  // Use vault address as seed for consistent random value per vault
+  const hash = vaultAddress.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+  const seed = hash % 1000
+  // Generate value between 3.0 and 6.0
+  const returnValue = 3.0 + (seed / 1000) * 3.0
+  return `+${returnValue.toFixed(2)}%`
+}
+
+// Generate 5 days of chart data based on vault address and target return
+const generateChartData = (vaultAddress: string, targetReturnPercent: string) => {
+  // Parse the return percentage (e.g., "+4.50%" -> 4.50)
+  const returnMatch = targetReturnPercent.match(/[+-]?(\d+\.?\d*)/)
+  const returnValue = returnMatch ? parseFloat(returnMatch[1]) : 0
+  
+  // Calculate target end value: $1 * (1 + return/100)
+  const startValue = 1.0
+  const targetEndValue = startValue * (1 + returnValue / 100)
+  
+  const data = []
+  const today = new Date()
+  const values: number[] = []
+  
+  // Generate random intermediate values for first 4 days
+  // Start at $1.00
+  values.push(startValue)
+  
+  // Generate 3 intermediate values with random fluctuations
+  for (let i = 1; i < 4; i++) {
+    const daySeed = vaultAddress + i.toString()
+    let dayHash = 0
+    for (let j = 0; j < daySeed.length; j++) {
+      dayHash = daySeed.charCodeAt(j) + ((dayHash << 5) - dayHash)
+    }
+    const dayRandom = (dayHash % 1000) / 1000
+    
+    // Daily change between -1.5% and +1.5%
+    const dailyChange = (dayRandom - 0.5) * 3.0 // Range: -1.5 to +1.5
+    
+    // Update value with random fluctuation
+    const prevValue = values[i - 1]
+    const newValue = prevValue * (1 + dailyChange / 100)
+    values.push(Math.max(0.5, newValue)) // Ensure value doesn't go too low
+  }
+  
+  // Calculate the 5th value to reach the target
+  // We need: values[3] * change = targetEndValue
+  // So: change = targetEndValue / values[3]
+  const fourthValue = values[3]
+  const requiredChange = targetEndValue / fourthValue
+  const finalValue = fourthValue * requiredChange
+  values.push(finalValue)
+  
+  // Generate dates and format data
+  for (let i = 4; i >= 0; i--) {
+    const date = new Date(today)
+    date.setDate(date.getDate() - i)
+    
+    // Generate random time for each day (between 9 AM and 4 PM for market hours feel)
+    const daySeed = vaultAddress + i.toString()
+    let timeHash = 0
+    for (let j = 0; j < daySeed.length; j++) {
+      timeHash = daySeed.charCodeAt(j) + ((timeHash << 5) - timeHash)
+    }
+    const timeRandom = (timeHash % 1000) / 1000
+    const hours = 9 + Math.floor(timeRandom * 7) // 9 AM to 4 PM
+    const minutes = Math.floor((timeRandom * 60) % 60)
+    date.setHours(hours, minutes, 0, 0)
+    
+    const valueIndex = 4 - i // Reverse index for values array
+    const currentValue = values[valueIndex]
+    
+    // Format date as "MMM DD" (e.g., "Jan 15")
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    
+    // Calculate percentage change from start
+    const changePercent = ((currentValue - startValue) / startValue) * 100
+    
+    data.push({
+      date: dateStr,
+      fullDate: date.toISOString(), // Store full date with time for tooltip
+      value: currentValue,
+      change: changePercent,
+      isPositive: currentValue >= startValue,
+    })
+  }
+  
+  return data
 }
 
 export default function FundPage() {
@@ -145,6 +248,7 @@ export default function FundPage() {
   const vaultAddress = params.address as string
   const { vaults, isLoading } = useAllVaults()
   const { address, isConnected } = useAccount()
+  const publicClient = usePublicClient()
   const [duration, setDuration] = useState("1Y")
   const [amount, setAmount] = useState("")
   const [isApproving, setIsApproving] = useState(false)
@@ -156,6 +260,53 @@ export default function FundPage() {
     if (!vaultAddress || !vaults) return null
     return vaults.find((v) => v.address.toLowerCase() === vaultAddress.toLowerCase())
   }, [vaultAddress, vaults])
+
+  // Helper function to format AUM in USDC (from totalAssets) - same as manager page
+  const formatAUM = (totalAssets?: bigint): string => {
+    if (!totalAssets || totalAssets === BigInt(0)) {
+      return "$0.00"
+    }
+    
+    // Convert from wei (18 decimals) to USDC
+    const aumInUSDC = Number(formatUnits(totalAssets, 18))
+    
+    // Format based on size
+    if (aumInUSDC >= 1_000_000) {
+      // Show in millions (M)
+      return `$${(aumInUSDC / 1_000_000).toFixed(2)}M`
+    } else if (aumInUSDC >= 1_000) {
+      // Show in thousands (K)
+      return `$${(aumInUSDC / 1_000).toFixed(2)}K`
+    } else {
+      // Show as is
+      return `$${aumInUSDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
+  }
+
+  // Map vault data to fund data format
+  const fundData = useMemo(() => {
+    if (!currentVault) return defaultFundData
+    const randomReturn = getRandomReturn(currentVault.address)
+    const aum = formatAUM(currentVault.totalAssets)
+    return {
+      name: currentVault.name,
+      category: "Vault",
+      rating: 4.5, // Mock rating
+      oneYearReturn: randomReturn,
+      allTimeReturn: randomReturn,
+      aum: aum,
+      traderExperience: 0, // Set to 0 years
+      description: `A decentralized vault managed on-chain. Total assets under management: ${aum}. Issued shares: ${currentVault.issuedShares}.`,
+      minInvestment: "$100",
+      fees: "2% management fee, 20% performance fee",
+    }
+  }, [currentVault])
+
+  // Generate chart data based on vault address and 1 year return (always 5 days)
+  const chartData = useMemo(() => {
+    if (!vaultAddress || !fundData.oneYearReturn) return []
+    return generateChartData(vaultAddress, fundData.oneYearReturn)
+  }, [vaultAddress, fundData.oneYearReturn])
 
   // Get base asset address (USDC) from vault
   const baseAssetAddress = useMemo(() => {
@@ -246,25 +397,83 @@ export default function FundPage() {
           // Wait for blockchain state to update after transaction confirmation
           await new Promise(resolve => setTimeout(resolve, 2000))
           
-          // Refetch totalSupply to get updated value after deposit
-          await refetchTotalSupplyAfter()
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          // Parse Deposit event from transaction receipt to get exact shares
+          let sharesReceived: number = 0
           
-          // Calculate shares received from totalSupply difference
-          let sharesReceived: number
-          
-          if (totalSupplyAfter && totalSupplyBefore && typeof totalSupplyAfter === 'bigint' && typeof totalSupplyBefore === 'bigint') {
-            // Convert both from wei, then subtract
-            const totalSupplyAfterNum = Number(formatUnits(totalSupplyAfter, 18))
-            const totalSupplyBeforeNum = Number(formatUnits(totalSupplyBefore, 18))
-            sharesReceived = totalSupplyAfterNum - totalSupplyBeforeNum
-          } else {
-            // Fallback: use previewDeposit if available
-            if (previewShares && typeof previewShares === 'bigint') {
-              sharesReceived = Number(formatUnits(previewShares, 18))
-            } else {
-              sharesReceived = parseFloat(amount) // Final fallback: assume 1:1
+          try {
+            if (publicClient && depositReceipt) {
+              // Find the Deposit event in the logs
+              // Deposit event signature: Deposit(address indexed sender, address indexed receiver, uint256 assets, uint256 shares)
+              const depositEventAbi = {
+                anonymous: false,
+                inputs: [
+                  { indexed: true, name: 'sender', type: 'address' },
+                  { indexed: true, name: 'receiver', type: 'address' },
+                  { indexed: false, name: 'assets', type: 'uint256' },
+                  { indexed: false, name: 'shares', type: 'uint256' },
+                ],
+                name: 'Deposit',
+                type: 'event',
+              } as const
+              
+              // Find the Deposit event in the transaction logs
+              for (const log of depositReceipt.logs || []) {
+                try {
+                  const decoded = decodeEventLog({
+                    abi: [depositEventAbi],
+                    data: log.data,
+                    topics: log.topics,
+                  })
+                  
+                  // Check if this is a Deposit event and matches our vault address
+                  if (decoded.eventName === 'Deposit' && 
+                      log.address.toLowerCase() === vaultAddress.toLowerCase() &&
+                      decoded.args.receiver?.toLowerCase() === address.toLowerCase()) {
+                    // Found the Deposit event! Extract shares
+                    if (decoded.args.shares && typeof decoded.args.shares === 'bigint') {
+                      sharesReceived = Number(formatUnits(decoded.args.shares, 18))
+                      console.log('Shares received from Deposit event:', sharesReceived)
+                      break
+                    }
+                  }
+                } catch (e) {
+                  // Not a Deposit event, continue searching
+                  continue
+                }
+              }
             }
+          } catch (eventError) {
+            console.warn('Failed to parse Deposit event, falling back to calculation:', eventError)
+          }
+          
+          // Fallback: Calculate shares from totalSupply difference if event parsing failed
+          if (sharesReceived === 0) {
+            await refetchTotalSupplyAfter()
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            
+            if (totalSupplyAfter && totalSupplyBefore && typeof totalSupplyAfter === 'bigint' && typeof totalSupplyBefore === 'bigint') {
+              // Convert both from wei, then subtract
+              const totalSupplyAfterNum = Number(formatUnits(totalSupplyAfter, 18))
+              const totalSupplyBeforeNum = Number(formatUnits(totalSupplyBefore, 18))
+              sharesReceived = totalSupplyAfterNum - totalSupplyBeforeNum
+              console.log('Shares calculated from totalSupply difference:', sharesReceived)
+            } else if (previewShares && typeof previewShares === 'bigint') {
+              // Fallback: use previewDeposit if available
+              sharesReceived = Number(formatUnits(previewShares, 18))
+              console.log('Shares from previewDeposit:', sharesReceived)
+            } else {
+              // Final fallback: assume 1:1 (should not happen)
+              sharesReceived = parseFloat(amount)
+              console.warn('Using fallback 1:1 ratio for shares:', sharesReceived)
+            }
+          }
+          
+          // Validate shares received
+          if (sharesReceived <= 0 || isNaN(sharesReceived)) {
+            console.error('Invalid shares received:', sharesReceived)
+            toast.error('Failed to calculate shares received. Please check the transaction.')
+            depositLoggedRef.current = null
+            return
           }
 
           // Call deposit API - ONLY ONCE after successful transaction
@@ -466,12 +675,46 @@ export default function FundPage() {
     },
   })
 
-  // Calculate vault holdings with percentages
+  // Get ValuationModule address from vault
+  const { data: valuationModuleAddress } = useReadContract({
+    address: vaultAddress as `0x${string}`,
+    abi: CONTRACTS.AssetVault.abi,
+    functionName: "valuationModule",
+    query: {
+      enabled: !!vaultAddress,
+    },
+  })
+
+  // Fetch prices for all tokens from ValuationModule
+  const priceContracts = useMemo(() => {
+    if (!valuationModuleAddress || !tokenAddresses.length) return []
+    return tokenAddresses.map((tokenAddr) => ({
+      address: valuationModuleAddress as `0x${string}`,
+      abi: CONTRACTS.ValuationModule.abi,
+      functionName: "getPrice" as const,
+      args: [tokenAddr],
+    })) as any
+  }, [valuationModuleAddress, tokenAddresses])
+
+  const { data: priceResults, isLoading: pricesLoading } = useReadContracts({
+    contracts: priceContracts,
+    query: {
+      enabled: priceContracts.length > 0 && !!valuationModuleAddress,
+    },
+  })
+
+  // Calculate vault holdings with percentages and prices
   const vaultHoldings = useMemo(() => {
     if (!balanceResults || !currentVault || !currentVault.totalAssets) return []
     
-    const holdings: Array<{ token: string; percentage: string; amount: string }> = []
+    const holdings: Array<{ 
+      token: string
+      percentage: string
+      amount: string
+      price: string
+    }> = []
     const totalAssets = currentVault.totalAssets
+    const totalAssetsValue = Number(formatUnits(totalAssets, 18))
     
     balanceResults.forEach((result, index) => {
       if (result.status === "success" && result.result) {
@@ -482,20 +725,50 @@ export default function FundPage() {
         if (tokenInfo && balance > BigInt(0)) {
           const balanceFormatted = formatUnits(balance, tokenInfo.decimals)
           const balanceValue = Number(balanceFormatted)
-          const totalAssetsValue = Number(formatUnits(totalAssets, 18))
           
-          // Calculate percentage (assuming 1:1 value for simplicity, or use actual pricing)
-          const percentage = totalAssetsValue > 0 
-            ? ((balanceValue / totalAssetsValue) * 100).toFixed(2)
+          // Get price from ValuationModule (price is in USDC, 18 decimals)
+          let priceInUSDC = BigInt(0)
+          let priceDisplay = "N/A"
+          let usdValue = 0
+          
+          if (priceResults && priceResults[index]?.status === "success" && priceResults[index]?.result) {
+            priceInUSDC = priceResults[index].result as bigint
+            
+            if (priceInUSDC > BigInt(0)) {
+              // Price is in wei (18 decimals), convert to readable format
+              const priceValue = Number(formatUnits(priceInUSDC, 18))
+              
+              // Format price display
+              if (priceValue >= 1000) {
+                priceDisplay = `$${priceValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+              } else {
+                priceDisplay = `$${priceValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+              }
+              
+              // Calculate USD value: (balance * price) / 1e18
+              // balance is in token decimals, price is in 18 decimals
+              // We need to convert balance to 18 decimals first, then multiply by price, then divide by 1e18
+              const balanceIn18Decimals = balance * BigInt(10 ** (18 - tokenInfo.decimals))
+              const usdValueWei = (balanceIn18Decimals * priceInUSDC) / BigInt(10 ** 18)
+              usdValue = Number(formatUnits(usdValueWei, 18))
+            }
+          }
+          
+          // Calculate percentage based on actual USD value
+          const percentage = totalAssetsValue > 0 && usdValue > 0
+            ? ((usdValue / totalAssetsValue) * 100).toFixed(2)
             : "0.00"
           
-          // Format amount in USD (simplified - would need actual token prices)
-          const amountUSD = `$${(balanceValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          // Format amount in USD
+          const amountUSD = usdValue > 0
+            ? `$${usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : "N/A"
           
           holdings.push({
             token: tokenInfo.symbol,
             percentage: `${percentage}%`,
             amount: amountUSD,
+            price: priceDisplay,
           })
         }
       }
@@ -503,28 +776,101 @@ export default function FundPage() {
     
     // Sort by percentage descending
     return holdings.sort((a, b) => parseFloat(b.percentage) - parseFloat(a.percentage))
-  }, [balanceResults, currentVault, tokenAddresses])
+  }, [balanceResults, priceResults, currentVault, tokenAddresses, TOKEN_MAP])
 
-  // Map vault data to fund data format
-  const fundData = useMemo(() => {
-    if (!currentVault) return defaultFundData
+
+  // Prepare Chart.js data
+  const chartJsData = useMemo(() => {
+    if (!chartData.length) return null
+    
     return {
-      name: currentVault.name,
-      category: "Vault",
-      rating: 4.5, // Mock rating
-      oneYearReturn: currentVault.perf,
-      allTimeReturn: currentVault.perf,
-      aum: currentVault.aum,
-      traderExperience: 0, // Mock
-      description: `A decentralized vault managed on-chain. Total assets under management: ${currentVault.aum}. Issued shares: ${currentVault.issuedShares}.`,
-      minInvestment: "$100",
-      fees: "2% management fee, 20% performance fee",
+      labels: chartData.map(d => d.date),
+      datasets: [
+        {
+          label: 'Value',
+          data: chartData.map(d => d.value),
+          borderColor: '#22c55e', // Green color
+          backgroundColor: '#22c55e',
+          borderWidth: 3,
+          pointRadius: 0, // Hide points by default
+          pointHoverRadius: 6, // Show point on hover
+          pointHoverBackgroundColor: '#ffffff', // White on hover
+          pointHoverBorderColor: '#22c55e', // Green border on hover
+          pointHoverBorderWidth: 3,
+          tension: 0, // Straight lines connecting points
+          fill: false,
+          spanGaps: false,
+        },
+      ],
     }
-  }, [currentVault])
+  }, [chartData])
 
-  const data = chartData[duration as keyof typeof chartData] || chartData["1Y"]
-  const maxValue = Math.max(...data)
-  const minValue = Math.min(...data)
+  // Chart.js options
+  const chartOptions = useMemo(() => {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          enabled: true,
+          mode: 'index' as const,
+          intersect: false,
+          backgroundColor: '#ffffff', // White background
+          titleColor: '#22c55e', // Green text
+          bodyColor: '#22c55e', // Green text
+          borderColor: '#22c55e', // Green border
+          borderWidth: 1,
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            title: () => '', // No title, we'll show time in label
+            label: (context: any) => {
+              const index = context.dataIndex
+              const data = chartData[index]
+              const value = context.parsed.y
+              if (data) {
+                const date = new Date(data.fullDate)
+                const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                return `$${value.toFixed(2)} | ${timeStr}`
+              }
+              return `$${value.toFixed(2)}`
+            },
+            labelTextColor: () => '#22c55e', // Green text
+          },
+        },
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: {
+            display: false,
+          },
+          ticks: {
+            color: 'hsl(var(--muted-foreground))',
+            font: {
+              size: 12,
+            },
+          },
+          border: {
+            display: false,
+          },
+        },
+        y: {
+          display: false,
+          grid: {
+            display: false,
+          },
+        },
+      },
+      interaction: {
+        intersect: false,
+        mode: 'index' as const,
+      },
+    }
+  }, [chartData])
 
   const handleProposeRebalance = () => {
     // TODO: Implement propose rebalance functionality
@@ -605,35 +951,14 @@ export default function FundPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="h-64 relative">
-                <svg className="w-full h-full" viewBox="0 0 1000 264" preserveAspectRatio="none">
-                  <defs>
-                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
-                      <stop offset="100%" stopColor="currentColor" stopOpacity="0.05" />
-                    </linearGradient>
-                  </defs>
-                  <polygon
-                    fill="url(#lineGradient)"
-                    className="text-primary"
-                    points={`0,264 ${data.map((value, index) => {
-                      const x = (index / (data.length - 1)) * 1000
-                      const y = 264 - ((value - minValue) / (maxValue - minValue)) * 264
-                      return `${x},${y}`
-                    }).join(" ")} 1000,264`}
-                  />
-                  <polyline
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    className="text-primary"
-                    points={data.map((value, index) => {
-                      const x = (index / (data.length - 1)) * 1000
-                      const y = 264 - ((value - minValue) / (maxValue - minValue)) * 264
-                      return `${x},${y}`
-                    }).join(" ")}
-                  />
-                </svg>
+              <div className="h-64 w-full">
+                {chartJsData ? (
+                  <Line data={chartJsData} options={chartOptions} />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -729,7 +1054,7 @@ export default function FundPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground mb-4">Current Holdings</h3>
-                  {balancesLoading ? (
+                  {(balancesLoading || pricesLoading) ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="w-6 h-6 animate-spin text-primary" />
                       <span className="ml-2 text-muted-foreground">Loading holdings...</span>
@@ -739,14 +1064,16 @@ export default function FundPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Token</TableHead>
+                          <TableHead>Price (USDC)</TableHead>
                           <TableHead>Current Percentage</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="text-right">Amount (USD)</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {vaultHoldings.map((holding, index) => (
                           <TableRow key={index}>
                             <TableCell className="font-medium">{holding.token}</TableCell>
+                            <TableCell>{holding.price}</TableCell>
                             <TableCell>{holding.percentage}</TableCell>
                             <TableCell className="text-right">{holding.amount}</TableCell>
                           </TableRow>

@@ -32,13 +32,13 @@ import {
 } from "@/components/ui/select"
 import { Edit, Square, ChevronDown, ChevronUp, Plus, Loader2 } from "lucide-react"
 import { useAllVaults } from "@/hooks/use-vaults"
-import { useWriteContract, useWaitForTransactionReceipt, useReadContracts, useReadContract } from "wagmi"
+import { useWriteContract, useWaitForTransactionReceipt, useReadContracts, useReadContract, usePublicClient } from "wagmi"
 import { createPublicClient, http, defineChain } from "viem"
 import { NETWORK_CONFIG } from "@/lib/contracts"
 import { CONTRACTS, CONTRACT_ADDRESSES } from "@/lib/contracts"
 import { toast } from "sonner"
 import { useAccount } from "wagmi"
-import { formatUnits, parseUnits, encodeFunctionData, keccak256, toHex, encodeAbiParameters, parseAbiParameters } from "viem"
+import { formatUnits, parseUnits, encodeFunctionData, keccak256, toHex, encodeAbiParameters, parseAbiParameters, decodeEventLog } from "viem"
 import { useMemo } from "react"
 import addresses from "@/../addresses.json"
 
@@ -92,6 +92,17 @@ function VaultHoldings({
   handleSell: (token: string) => void
   handleRebalance: () => void
 }) {
+  // Get ValuationModule address from vault
+  const { data: valuationModuleAddress } = useReadContract({
+    address: vaultAddress as `0x${string}`,
+    abi: CONTRACTS.AssetVault.abi,
+    functionName: "valuationModule",
+    query: {
+      enabled: !!vaultAddress,
+    },
+  })
+
+
   // Get balances for all tokens in the vault
   const balanceContracts = useMemo(() => {
     if (!vaultAddress) return []
@@ -118,11 +129,67 @@ function VaultHoldings({
     },
   })
 
-  // Calculate vault holdings
+  // Fetch prices for all tokens from ValuationModule
+  const priceContracts = useMemo(() => {
+    if (!valuationModuleAddress || !tokenAddresses.length) {
+      console.log("❌ [Price Contracts] Missing data:", {
+        valuationModuleAddress,
+        tokenAddressesLength: tokenAddresses.length,
+      })
+      return []
+    }
+    console.log("✅ [Price Contracts] Creating contracts:", {
+      valuationModuleAddress,
+      tokenAddresses: tokenAddresses.map(addr => addr.toLowerCase()),
+      count: tokenAddresses.length,
+    })
+    return tokenAddresses.map((tokenAddr) => ({
+      address: valuationModuleAddress as `0x${string}`,
+      abi: CONTRACTS.ValuationModule.abi,
+      functionName: "getPrice" as const,
+      args: [tokenAddr],
+    })) as any
+  }, [valuationModuleAddress, tokenAddresses])
+
+  const { data: priceResults, isLoading: pricesLoading, error: priceError } = useReadContracts({
+    contracts: priceContracts,
+    query: {
+      enabled: priceContracts.length > 0 && !!valuationModuleAddress,
+    },
+  })
+
+  // Log price results
+  useEffect(() => {
+    console.log("💰 [Price Results] Data:", priceResults)
+    console.log("💰 [Price Results] Is Loading:", pricesLoading)
+    console.log("💰 [Price Results] Error:", priceError)
+    if (priceResults) {
+      priceResults.forEach((result, index) => {
+        const tokenAddr = tokenAddresses[index]
+        console.log(`💰 [Price Results] Token ${index} (${tokenAddr}):`, {
+          status: result.status,
+          result: result.result,
+          error: result.error,
+        })
+        if (result.status === "success" && result.result) {
+          const priceValue = Number(formatUnits(result.result as bigint, 18))
+          console.log(`💰 [Price Results] Token ${index} Price in USDC:`, priceValue)
+        }
+      })
+    }
+  }, [priceResults, pricesLoading, priceError, tokenAddresses])
+
+  // Calculate vault holdings with prices
   const vaultHoldings = useMemo(() => {
     if (!balanceResults || !totalAssets) return []
     
-    const holdings: Array<{ token: string; value: string; usdValue: string }> = []
+    const holdings: Array<{ 
+      token: string
+      tokenAddress: string
+      value: string
+      price: string
+      usdValue: string 
+    }> = []
     
     balanceResults.forEach((result, index) => {
       if (result.status === "success" && result.result) {
@@ -134,21 +201,76 @@ function VaultHoldings({
           const balanceFormatted = formatUnits(balance, tokenInfo.decimals)
           const balanceValue = Number(balanceFormatted)
           
-          // Format value
+          // Get price from ValuationModule (price is in USDC, 18 decimals)
+          let priceInUSDC = BigInt(0)
+          let priceDisplay = "N/A"
+          let usdValue = "$0.00"
+          
+          console.log(`🔍 [Holding ${tokenInfo.symbol}] Checking price at index ${index}:`, {
+            hasPriceResults: !!priceResults,
+            priceResult: priceResults?.[index],
+            status: priceResults?.[index]?.status,
+            result: priceResults?.[index]?.result,
+            error: priceResults?.[index]?.error,
+          })
+          
+          if (priceResults && priceResults[index]?.status === "success" && priceResults[index]?.result) {
+            priceInUSDC = priceResults[index].result as bigint
+            console.log(`✅ [Holding ${tokenInfo.symbol}] Price fetched:`, {
+              priceInUSDC: priceInUSDC.toString(),
+              isGreaterThanZero: priceInUSDC > BigInt(0),
+            })
+            
+            if (priceInUSDC > BigInt(0)) {
+              // Price is in wei (18 decimals), convert to readable format
+              const priceValue = Number(formatUnits(priceInUSDC, 18))
+              console.log(`✅ [Holding ${tokenInfo.symbol}] Price value:`, priceValue)
+              
+              // Format price display
+              if (priceValue >= 1000) {
+                priceDisplay = `$${priceValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+              } else {
+                priceDisplay = `$${priceValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+              }
+              
+              // Calculate USD value: (balance * price) / 1e18
+              // balance is in token decimals, price is in 18 decimals
+              // We need to convert balance to 18 decimals first, then multiply by price, then divide by 1e18
+              const balanceIn18Decimals = balance * BigInt(10 ** (18 - tokenInfo.decimals))
+              const usdValueWei = (balanceIn18Decimals * priceInUSDC) / BigInt(10 ** 18)
+              const usdValueNum = Number(formatUnits(usdValueWei, 18))
+              
+              usdValue = `$${usdValueNum.toLocaleString(undefined, { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+              })}`
+              
+              console.log(`✅ [Holding ${tokenInfo.symbol}] Final values:`, {
+                priceDisplay,
+                usdValue,
+              })
+            } else {
+              console.log(`❌ [Holding ${tokenInfo.symbol}] Price is zero or negative`)
+            }
+          } else {
+            console.log(`❌ [Holding ${tokenInfo.symbol}] Failed to get price:`, {
+              hasPriceResults: !!priceResults,
+              priceResultStatus: priceResults?.[index]?.status,
+              priceResultError: priceResults?.[index]?.error,
+            })
+          }
+          
+          // Format token value
           const value = balanceValue.toLocaleString(undefined, {
             minimumFractionDigits: 2,
             maximumFractionDigits: 6,
           })
           
-          // Format USD value (simplified - would need actual token prices)
-          const usdValue = `$${(balanceValue).toLocaleString(undefined, { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
-          })}`
-          
           holdings.push({
             token: tokenInfo.symbol,
+            tokenAddress: tokenAddress.toLowerCase(),
             value,
+            price: priceDisplay,
             usdValue,
           })
         }
@@ -157,12 +279,12 @@ function VaultHoldings({
     
     // Sort by token symbol
     return holdings.sort((a, b) => a.token.localeCompare(b.token))
-  }, [balanceResults, totalAssets, tokenAddresses, TOKEN_MAP])
+  }, [balanceResults, priceResults, totalAssets, tokenAddresses, TOKEN_MAP])
 
   return (
     <div className="mt-6 pt-6 border-t space-y-4">
       <h4 className="font-semibold text-foreground mb-4">Current Fund Holdings</h4>
-      {balancesLoading ? (
+      {(balancesLoading || pricesLoading) ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
           <span className="ml-2 text-muted-foreground">Loading holdings...</span>
@@ -173,7 +295,8 @@ function VaultHoldings({
             <TableHeader>
               <TableRow>
                 <TableHead>Token</TableHead>
-                <TableHead>Value</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Price (USDC)</TableHead>
                 <TableHead>USD Value</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -183,6 +306,7 @@ function VaultHoldings({
                 <TableRow key={index}>
                   <TableCell className="font-medium">{holding.token}</TableCell>
                   <TableCell>{holding.value}</TableCell>
+                  <TableCell>{holding.price}</TableCell>
                   <TableCell>{holding.usdValue}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -239,6 +363,12 @@ export default function VaultManagement() {
   const [vaultSymbol, setVaultSymbol] = useState("")
   const [governanceEnabled, setGovernanceEnabled] = useState(false)
   const { address: connectedAddress } = useAccount()
+  const publicClient = usePublicClient()
+  
+  // Adapter selection state
+  const [adapterDialogOpen, setAdapterDialogOpen] = useState(false)
+  const [newlyCreatedVaultAddress, setNewlyCreatedVaultAddress] = useState<`0x${string}` | null>(null)
+  const [selectedAdapter, setSelectedAdapter] = useState<string>("")
   
   // Create public client for reading contract data
   const getPublicClient = () => {
@@ -252,7 +382,7 @@ export default function VaultManagement() {
       },
       rpcUrls: {
         default: {
-          http: [NETWORK_CONFIG.rpcUrl],
+          http: (NETWORK_CONFIG as any).rpcUrls || [NETWORK_CONFIG.rpcUrl],
         },
       },
     })
@@ -288,10 +418,22 @@ export default function VaultManagement() {
   })
 
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+  const { isLoading: isConfirming, isSuccess: isConfirmed, data: createVaultReceipt } =
     useWaitForTransactionReceipt({
       hash,
     })
+  
+  // Write contract for registering adapter
+  const {
+    data: registerAdapterHash,
+    writeContract: writeRegisterAdapter,
+    isPending: isRegisteringAdapter,
+    error: registerAdapterError,
+  } = useWriteContract()
+  
+  const { isLoading: isRegisteringAdapterConfirming, isSuccess: isRegisterAdapterSuccess } = useWaitForTransactionReceipt({
+    hash: registerAdapterHash,
+  })
 
   const availableTokens = ["ETH", "BTC", "SOL", "HYPE", "WMNT"]
 
@@ -580,17 +722,76 @@ export default function VaultManagement() {
     }
   }
 
-  // Handle transaction success
+  // Handle transaction success - Parse VaultCreated event and show adapter selection
   useEffect(() => {
-    if (isConfirmed && createVaultDialogOpen) {
-      toast.success("Vault created successfully!")
-      setCreateVaultDialogOpen(false)
-      setVaultName("")
-      setVaultSymbol("")
-      setGovernanceEnabled(false)
-      // Vaults will automatically refresh on next render
+    if (isConfirmed && createVaultReceipt && createVaultDialogOpen) {
+      const parseVaultCreatedEvent = async () => {
+        try {
+          // Parse VaultCreated event from transaction receipt
+          // Event signature: VaultCreated(uint256 indexed vaultId, address indexed vault, address indexed creator, address baseAsset, address curator, bool governanceEnabled, string name, string symbol)
+          const vaultCreatedEventAbi = {
+            anonymous: false,
+            inputs: [
+              { indexed: true, name: 'vaultId', type: 'uint256' },
+              { indexed: true, name: 'vault', type: 'address' },
+              { indexed: true, name: 'creator', type: 'address' },
+              { indexed: false, name: 'baseAsset', type: 'address' },
+              { indexed: false, name: 'curator', type: 'address' },
+              { indexed: false, name: 'governanceEnabled', type: 'bool' },
+              { indexed: false, name: 'name', type: 'string' },
+              { indexed: false, name: 'symbol', type: 'string' },
+            ],
+            name: 'VaultCreated',
+            type: 'event',
+          } as const
+          
+          // Find the VaultCreated event in the transaction logs
+          for (const log of createVaultReceipt.logs || []) {
+            try {
+              const decoded = decodeEventLog({
+                abi: [vaultCreatedEventAbi],
+                data: log.data,
+                topics: log.topics,
+              })
+              
+              // Check if this is a VaultCreated event from VaultFactory
+              if (decoded.eventName === 'VaultCreated' && 
+                  log.address.toLowerCase() === CONTRACTS.VaultFactory.address.toLowerCase()) {
+                // Found the VaultCreated event! Extract vault address
+                if (decoded.args.vault && typeof decoded.args.vault === 'string') {
+                  const vaultAddress = decoded.args.vault as `0x${string}`
+                  setNewlyCreatedVaultAddress(vaultAddress)
+                  setCreateVaultDialogOpen(false)
+                  setAdapterDialogOpen(true)
+                  toast.success("Vault created successfully! Now set the adapter.")
+                  return
+                }
+              }
+            } catch (e) {
+              // Not a VaultCreated event, continue searching
+              continue
+            }
+          }
+          
+          // If event parsing failed, show error
+          toast.error("Vault created but failed to parse vault address. Please refresh.")
+          setCreateVaultDialogOpen(false)
+          setVaultName("")
+          setVaultSymbol("")
+          setGovernanceEnabled(false)
+        } catch (error) {
+          console.error("Error parsing VaultCreated event:", error)
+          toast.error("Vault created but failed to parse vault address. Please refresh.")
+          setCreateVaultDialogOpen(false)
+          setVaultName("")
+          setVaultSymbol("")
+          setGovernanceEnabled(false)
+        }
+      }
+      
+      parseVaultCreatedEvent()
     }
-  }, [isConfirmed, createVaultDialogOpen])
+  }, [isConfirmed, createVaultReceipt, createVaultDialogOpen])
 
   // Handle transaction error
   useEffect(() => {
@@ -598,6 +799,53 @@ export default function VaultManagement() {
       toast.error(`Transaction failed: ${createError.message}`)
     }
   }, [createError, createVaultDialogOpen])
+  
+  // Handle register adapter success
+  useEffect(() => {
+    if (isRegisterAdapterSuccess) {
+      toast.success("Adapter registered successfully!")
+      setAdapterDialogOpen(false)
+      setNewlyCreatedVaultAddress(null)
+      setSelectedAdapter("")
+      setVaultName("")
+      setVaultSymbol("")
+      setGovernanceEnabled(false)
+    }
+  }, [isRegisterAdapterSuccess])
+  
+  // Handle register adapter error
+  useEffect(() => {
+    if (registerAdapterError) {
+      toast.error(`Failed to register adapter: ${registerAdapterError.message}`)
+    }
+  }, [registerAdapterError])
+  
+  // Handle set adapter button click
+  const handleSetAdapter = () => {
+    if (!newlyCreatedVaultAddress || !selectedAdapter) {
+      toast.error("Please select an adapter")
+      return
+    }
+    
+    try {
+      // Adapter ID is keccak256("DEX")
+      const adapterId = keccak256(toHex("DEX"))
+      
+      // Adapter address based on selection
+      const adapterAddress = selectedAdapter as `0x${string}`
+      
+      writeRegisterAdapter({
+        address: newlyCreatedVaultAddress,
+        abi: CONTRACTS.AssetVault.abi,
+        functionName: "registerAdapter",
+        args: [adapterId, adapterAddress],
+      })
+      
+      toast.info("Registering adapter... Waiting for confirmation...")
+    } catch (error: any) {
+      toast.error(`Failed to register adapter: ${error?.message || "Unknown error"}`)
+    }
+  }
 
   // Handle rebalance transaction success
   useEffect(() => {
@@ -623,6 +871,28 @@ export default function VaultManagement() {
     console.log("Stopping fund:", selectedVaultId)
     setStopFundDialogOpen(false)
     setSelectedVaultId(null)
+  }
+
+  // Helper function to format AUM in USDC (from totalAssets)
+  const formatAUM = (totalAssets: bigint | undefined): string => {
+    if (!totalAssets || totalAssets === BigInt(0)) {
+      return "$0.00"
+    }
+    
+    // Convert from wei (18 decimals) to USDC
+    const aumInUSDC = Number(formatUnits(totalAssets, 18))
+    
+    // Format based on size
+    if (aumInUSDC >= 1_000_000) {
+      // Show in millions (M)
+      return `$${(aumInUSDC / 1_000_000).toFixed(2)}M`
+    } else if (aumInUSDC >= 1_000) {
+      // Show in thousands (K)
+      return `$${(aumInUSDC / 1_000).toFixed(2)}K`
+    } else {
+      // Show as is
+      return `$${aumInUSDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
   }
 
   return (
@@ -670,7 +940,7 @@ export default function VaultManagement() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">AUM</p>
-                      <p className="font-semibold text-foreground">{vault.aum}</p>
+                      <p className="font-semibold text-foreground">{formatAUM(vault.totalAssets)}</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Issued Shares</p>
@@ -1000,6 +1270,93 @@ export default function VaultManagement() {
                 : isConfirming
                 ? "Confirming..."
                 : "Create Vault"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Adapter Selection Dialog - Shows after vault creation */}
+      <Dialog open={adapterDialogOpen} onOpenChange={(open) => {
+        // Prevent closing during adapter registration
+        if (!open && (isRegisteringAdapter || isRegisteringAdapterConfirming)) {
+          return
+        }
+        if (!open) {
+          setAdapterDialogOpen(false)
+          setNewlyCreatedVaultAddress(null)
+          setSelectedAdapter("")
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Vault Created</DialogTitle>
+            <DialogDescription>
+              Now set the adapter for your vault.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="adapter-select">Select Adapter</Label>
+              <Select value={selectedAdapter} onValueChange={setSelectedAdapter}>
+                <SelectTrigger className="w-full" disabled={isRegisteringAdapter || isRegisteringAdapterConfirming}>
+                  <SelectValue placeholder="Select an adapter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0xe1327FE9b457Ad1b4601FdD2afcAdAef198d6BA6">
+                    <div className="flex items-center justify-between w-full">
+                      <span>UniswapCloneDexAdapter</span>
+                      <span className="text-xs text-muted-foreground font-mono ml-2">
+                        0xe132...d6BA6
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="nft" disabled>
+                    <div className="flex items-center justify-between w-full opacity-50">
+                      <span>NFT Adapter</span>
+                      <span className="text-xs text-muted-foreground ml-2">Coming Soon</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="rwa" disabled>
+                    <div className="flex items-center justify-between w-full opacity-50">
+                      <span>RWA Adapter</span>
+                      <span className="text-xs text-muted-foreground ml-2">Coming Soon</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="custom" disabled>
+                    <div className="flex items-center justify-between w-full opacity-50">
+                      <span>Add Your Adapter</span>
+                      <span className="text-xs text-muted-foreground ml-2">Coming Soon</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAdapterDialogOpen(false)
+                setNewlyCreatedVaultAddress(null)
+                setSelectedAdapter("")
+              }}
+              disabled={isRegisteringAdapter || isRegisteringAdapterConfirming}
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={handleSetAdapter}
+              disabled={!selectedAdapter || isRegisteringAdapter || isRegisteringAdapterConfirming}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {(isRegisteringAdapter || isRegisteringAdapterConfirming) && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              {isRegisteringAdapter
+                ? "Registering..."
+                : isRegisteringAdapterConfirming
+                ? "Confirming..."
+                : "Set Adapter"}
             </Button>
           </DialogFooter>
         </DialogContent>

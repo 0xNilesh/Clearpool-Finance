@@ -38,10 +38,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (existingPosition) {
-      // Update existing position
+      // Update existing position - weighted average cost basis
       const updatedOrders = [...(existingPosition.orders || []), depositOrder]
-      const totalShares = (existingPosition.totalShares || 0) + parseFloat(shares)
-      const totalInvestedValue = (existingPosition.totalInvestedValue || 0) + parseFloat(amount)
+      
+      // Add new shares and invested amount (weighted average happens automatically)
+      const currentShares = existingPosition.totalShares || 0
+      const currentInvestedValue = existingPosition.totalInvestedValue || 0
+      const newShares = parseFloat(shares)
+      const newInvestedValue = parseFloat(amount)
+      
+      const totalShares = currentShares + newShares
+      const totalInvestedValue = currentInvestedValue + newInvestedValue
+      // Average cost per share = totalInvestedValue / totalShares (calculated automatically)
 
       await collection.updateOne(
         { _id: existingPosition._id },

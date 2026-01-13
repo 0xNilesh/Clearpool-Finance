@@ -2,259 +2,114 @@
 sidebar_position: 6
 ---
 
-# Smart Contracts
+# Contract Addresses
 
-Clearpool Finance is built on a robust smart contract architecture that ensures security, transparency, and decentralization.
+This page lists all deployed contract addresses for Clearpool Finance on Mantle Sepolia Testnet. All addresses are clickable and will take you to the contract page on Mantle Sepolia Explorer.
 
-## Contract Architecture
+> **Note**: These are testnet addresses. Click on any address to view it on [Mantle Sepolia Explorer](https://sepolia.mantlescan.xyz/).
 
-### Core Contracts
+## Core Contracts
 
-#### AssetVault
+### VaultFactory
 
-The main vault contract that manages individual funds:
+Factory contract for creating new investment vaults.
 
-- **Fund Management**: Handles deposits, withdrawals, and NAV calculations
-- **Asset Tracking**: Tracks all assets in the fund
-- **Share Management**: Manages share issuance and redemption
-- **Access Control**: Controls who can perform fund operations
+**Address**: [`0x4F532db1ce4f33170b21F6a97A8973e9499BbD75`](https://sepolia.mantlescan.xyz/address/0x4F532db1ce4f33170b21F6a97A8973e9499BbD75)
 
-**Key Functions:**
-- `deposit(uint256 amount)`: Invest in the fund
-- `withdraw(uint256 shares)`: Withdraw from the fund
-- `calculateNAV()`: Calculate current Net Asset Value
-- `rebalance()`: Rebalance fund portfolio
+### AssetVault (Implementation)
 
-#### VaultFactory
+Implementation contract for individual investment vaults.
 
-Factory contract for creating new funds:
+**Address**: [`0xC107Bf787cba6BD5d68b528e7e5ae085f8e3E7D5`](https://sepolia.mantlescan.xyz/address/0xC107Bf787cba6BD5d68b528e7e5ae085f8e3E7D5)
 
-- **Fund Creation**: Creates new vault contracts
-- **Configuration**: Sets initial fund parameters
-- **Registration**: Registers funds in the system
+## Module Contracts
 
-**Key Functions:**
-- `createVault(...)`: Create a new fund vault
-- `registerVault(address vault)`: Register vault in system
-- `getVaults()`: Get list of all vaults
+### ValuationModule
 
-### Adapter Contracts
+Handles asset valuation and price feeds for NAV calculations.
 
-Adapters allow funds to interact with different DeFi protocols:
+**Address**: [`0x3e437EaCf65e5a0D311EF139B29D825b41619435`](https://sepolia.mantlescan.xyz/address/0x3e437EaCf65e5a0D311EF139B29D825b41619435)
 
-#### DexAdapter
+### AdapterRegistry
 
-Handles decentralized exchange interactions:
+Registers and manages adapter contracts for multi-asset investment strategies.
 
-- **Token Swaps**: Execute swaps on DEXs
-- **Liquidity Provision**: Add/remove liquidity
-- **Price Discovery**: Get token prices from DEXs
+**Address**: [`0x09676C46aaE81a2E0e13ce201040400765BFe329`](https://sepolia.mantlescan.xyz/address/0x09676C46aaE81a2E0e13ce201040400765BFe329)
 
-#### LendingAdapter
+### PerformanceFeeModule
 
-Manages lending protocol interactions:
+Manages performance fee calculation and distribution.
 
-- **Deposit/Lend**: Lend assets to earn yield
-- **Withdraw**: Withdraw from lending pools
-- **Yield Collection**: Collect earned interest
+**Address**: [`0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395`](https://sepolia.mantlescan.xyz/address/0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395)
 
-#### RWAAdapter
+### GovernanceModule
 
-Real-world asset integration:
+Handles on-chain governance proposals and voting.
 
-- **Asset Tokenization**: Manage tokenized real-world assets
-- **Compliance**: Handle compliance requirements
-- **Revenue Distribution**: Distribute real-world asset revenues
+**Address**: [`0xc0356fa9B4766c6b1561eC98AF78Ab7A3b284B88`](https://sepolia.mantlescan.xyz/address/0xc0356fa9B4766c6b1561eC98AF78Ab7A3b284B88)
 
-#### YieldAdapter
+## Adapter Contracts
 
-Yield farming and staking:
+### UniswapCloneDexAdapter
 
-- **Staking**: Stake tokens to earn rewards
-- **Yield Farming**: Participate in yield farms
-- **Reward Collection**: Collect farming rewards
+Decentralized exchange adapter for executing token swaps and liquidity operations.
 
-### Supporting Contracts
+**Address**: [`0xe1327FE9b457Ad1b4601FdD2afcAdAef198d6BA6`](https://sepolia.mantlescan.xyz/address/0xe1327FE9b457Ad1b4601FdD2afcAdAef198d6BA6)
 
-#### AdapterRegistry
+## Test Tokens
 
-Registers and manages adapters:
+The following test tokens are available on Mantle Sepolia Testnet for testing purposes:
 
-- **Adapter Management**: Register/remove adapters
-- **Access Control**: Control adapter permissions
-- **Versioning**: Manage adapter versions
+### USDC (Test Token)
 
-#### ValuationModule
+USD Coin test token.
 
-Handles asset valuation:
+**Address**: [`0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc`](https://sepolia.mantlescan.xyz/address/0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc)
 
-- **Price Feeds**: Integrate with price oracles
-- **NAV Calculation**: Calculate Net Asset Value
-- **Asset Valuation**: Value different asset types
+**Symbol**: USDC  
+**Decimals**: 18
 
-#### PerformanceFeeModule
+### ETH (Test Token)
 
-Manages performance fees:
+Ethereum test token.
 
-- **Fee Calculation**: Calculate performance fees
-- **Fee Distribution**: Distribute fees to managers
-- **Fee Tracking**: Track fee accruals
+**Address**: [`0xEF9dA0056f03F0df3BB1b1b8650Fb83b62396ACe`](https://sepolia.mantlescan.xyz/address/0xEF9dA0056f03F0df3BB1b1b8650Fb83b62396ACe)
 
-#### GovernanceModule
+**Symbol**: ETH  
+**Decimals**: 18
 
-Fund governance mechanisms:
+### WMNT (Wrapped Mantle)
 
-- **Proposals**: Submit governance proposals
-- **Voting**: Vote on proposals
-- **Execution**: Execute approved proposals
+Wrapped Mantle native token.
 
-## Contract Addresses
+**Address**: [`0xF3Ccb7D82aeD24CB34ffC0a0b12C8D6141a888a6`](https://sepolia.mantlescan.xyz/address/0xF3Ccb7D82aeD24CB34ffC0a0b12C8D6141a888a6)
 
-### Mainnet (When Deployed)
+**Symbol**: WMNT  
+**Decimals**: 18
 
-Contract addresses will be published here after mainnet deployment.
+### SOL (Test Token)
 
-### Testnet (Mantle Testnet)
+Solana test token.
 
-Current testnet contract addresses:
+**Address**: [`0xA4A5162b96DbaA4c3d040977058C9F40A2B78CF9`](https://sepolia.mantlescan.xyz/address/0xA4A5162b96DbaA4c3d040977058C9F40A2B78CF9)
 
-- **VaultFactory**: `0x...` (To be deployed)
-- **AssetVault Template**: `0x...` (To be deployed)
+**Symbol**: SOL  
+**Decimals**: 18
 
-## Contract Interactions
+### HYPE (Test Token)
 
-### For Users
+HYPE test token.
 
-#### Investing in a Fund
+**Address**: [`0xCF7bDE314aCE4Bf8f76C37777FDe79c0088C7B3F`](https://sepolia.mantlescan.xyz/address/0xCF7bDE314aCE4Bf8f76C37777FDe79c0088C7B3F)
 
-```solidity
-// Approve vault to spend your tokens
-IERC20(token).approve(vaultAddress, amount);
+**Symbol**: HYPE  
+**Decimals**: 18
 
-// Deposit into vault
-AssetVault(vaultAddress).deposit(amount);
-```
+### BTC (Test Token)
 
-#### Withdrawing from a Fund
+Bitcoin test token.
 
-```solidity
-// Withdraw shares
-AssetVault(vaultAddress).withdraw(shares);
-```
+**Address**: [`0x1cc3e402376d44353bDA040CC9e15CD828169840`](https://sepolia.mantlescan.xyz/address/0x1cc3e402376d44353bDA040CC9e15CD828169840)
 
-### For Fund Managers
-
-#### Creating a Fund
-
-```solidity
-// Create vault through factory
-VaultFactory(factoryAddress).createVault(
-    name,
-    symbol,
-    managerAddress,
-    feeConfig
-);
-```
-
-#### Managing Fund
-
-```solidity
-// Rebalance portfolio
-AssetVault(vaultAddress).rebalance();
-
-// Update strategy
-AssetVault(vaultAddress).updateStrategy(newStrategy);
-```
-
-## Security Features
-
-### Access Control
-
-- **Role-Based Access**: Different roles have different permissions
-- **Multi-Signature**: Critical operations require multiple signatures
-- **Timelocks**: Important changes have delay periods
-
-### Upgradeability
-
-- **Proxy Pattern**: Uses proxy pattern for upgrades
-- **Governance**: Upgrades require governance approval
-- **Backwards Compatibility**: Maintains compatibility with existing integrations
-
-### Emergency Features
-
-- **Pause Mechanism**: Contracts can be paused in emergencies
-- **Circuit Breakers**: Automatic stops for unusual activity
-- **Recovery Functions**: Secure recovery mechanisms
-
-## Contract Verification
-
-All contracts are:
-
-- **Open Source**: Source code available on GitHub
-- **Verified**: Verified on block explorers (Etherscan, etc.)
-- **Audited**: Audited by security firms
-- **Tested**: Extensive test coverage
-
-## Contract Deployment
-
-### Deployment Process
-
-1. **Testing**: Contracts tested on testnet
-2. **Audit**: Security audit completed
-3. **Verification**: Source code verified on block explorer
-4. **Deployment**: Deployed to mainnet
-5. **Verification**: Post-deployment verification
-
-### Upgrade Process
-
-1. **Proposal**: Upgrade proposal submitted
-2. **Governance Vote**: Community votes on upgrade
-3. **Timelock**: Upgrade scheduled after timelock period
-4. **Execution**: Upgrade executed
-5. **Verification**: Post-upgrade verification
-
-## Integration
-
-### For Developers
-
-Integrate with Clearpool Finance contracts:
-
-```typescript
-import { AssetVault, VaultFactory } from '@clearpool/contracts';
-
-// Connect to contracts
-const vault = new AssetVault(vaultAddress, provider);
-const factory = new VaultFactory(factoryAddress, provider);
-
-// Interact with contracts
-const nav = await vault.calculateNAV();
-const shares = await vault.balanceOf(userAddress);
-```
-
-### SDK Usage
-
-Use the Clearpool Finance SDK for easier integration:
-
-```typescript
-import { ClearpoolSDK } from '@clearpool/sdk';
-
-const sdk = new ClearpoolSDK(provider);
-const funds = await sdk.getFunds();
-const userInvestments = await sdk.getUserInvestments(userAddress);
-```
-
-## Audit Reports
-
-Security audit reports will be published here after completion.
-
-## Source Code
-
-Contract source code is available at:
-- GitHub: [Clearpool Finance Contracts](https://github.com/clearpool-finance/contracts)
-
-## Support
-
-For technical questions about contracts:
-- Documentation: Check our technical docs
-- Discord: Join our developer Discord
-- GitHub: Open an issue on GitHub
+**Symbol**: BTC  
+**Decimals**: 18
