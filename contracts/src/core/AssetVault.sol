@@ -282,14 +282,19 @@ contract AssetVault is
 
     // Module updates (owner/governance only)
     function updateModule(string calldata _name, address newModule) external onlyOwner {
-        if (newModule == address(0)) revert Errors.InvalidAddress();
-        else if (keccak256(bytes(_name)) == keccak256("AdapterRegistry")) adapterRegistry = AdapterRegistry(newModule);
-        else if (keccak256(bytes(_name)) == keccak256("ValuationModule")) valuationModule = IValuationModule(newModule);
-        else if (keccak256(bytes(_name)) == keccak256("FeeModule")) feeModule = PerformanceFeeModule(newModule);
-        else if (keccak256(bytes(_name)) == keccak256("GovernanceModule")) governanceModule = GovernanceModule(
-            newModule
-        );
-        else revert Errors.InvalidModule();
+        if (newModule == address(0)) {
+            revert Errors.InvalidAddress();
+        } else if (keccak256(bytes(_name)) == keccak256("AdapterRegistry")) {
+            adapterRegistry = AdapterRegistry(newModule);
+        } else if (keccak256(bytes(_name)) == keccak256("ValuationModule")) {
+            valuationModule = IValuationModule(newModule);
+        } else if (keccak256(bytes(_name)) == keccak256("FeeModule")) {
+            feeModule = PerformanceFeeModule(newModule);
+        } else if (keccak256(bytes(_name)) == keccak256("GovernanceModule")) {
+            governanceModule = GovernanceModule(newModule);
+        } else {
+            revert Errors.InvalidModule();
+        }
         emit ModuleUpdated(_name, newModule);
     }
 

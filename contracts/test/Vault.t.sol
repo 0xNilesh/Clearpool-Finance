@@ -16,6 +16,7 @@ import {ValuationModule} from "../src/valuation/ValuationModule.sol";
 import {GovernanceModule} from "../src/governance/GovernanceModule.sol";
 import {Errors} from "../src/libraries/Errors.sol";
 import {PerformanceFeeModule} from "../src/fees/PerformanceFeeModule.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockSwapRouter {
     ValuationModule public valuationModule;
@@ -29,7 +30,7 @@ contract MockSwapRouter {
         IERC20(params.tokenIn).transferFrom(msg.sender, address(this), params.amountIn);
 
         // Get price of tokenOut in base asset units (1e18)
-        uint256 pricePerUnit = valuationModule.prices(params.tokenOut);
+        uint256 pricePerUnit = valuationModule.manualPrices(params.tokenOut);
         if (pricePerUnit == 0) {
             pricePerUnit = 1e18; // fallback 1:1
         }
@@ -70,11 +71,17 @@ contract ComposableVaultTest is Test {
         address valuationImpl = address(new ValuationModule());
         address feeImpl = address(new PerformanceFeeModule());
         address governanceImpl = address(new GovernanceModule());
-        factory = new VaultFactory();
-        factory.initialize(adapterRegistryImpl, valuationImpl, feeImpl, governanceImpl, assetVaultImpl);
 
         usdc = new ERC20Mock();
         weth = new ERC20Mock();
+
+        address valuationModuleProxy = address(new ERC1967Proxy{salt: keccak256(abi.encode(address(curator), address(usdc)))}(valuationImpl, ""));
+        ValuationModule(valuationModuleProxy).initialize(address(curator), address(usdc));
+        factory = new VaultFactory();
+        factory.initialize(adapterRegistryImpl, valuationModuleProxy, feeImpl, governanceImpl, assetVaultImpl);
+
+        vm.prank(curator);
+        IValuationModule(valuationModuleProxy).setManualPrice(address(weth), 2000e18);
 
         usdc.mint(investor1, 100_000 * 1e18);
         usdc.mint(investor2, 100_000 * 1e18);
@@ -119,7 +126,7 @@ contract ComposableVaultTest is Test {
         vault.deposit(10_000 * 1e18, investor1);
 
         vm.prank(curator);
-        valuationModule.setPrice(address(weth), 2000e18);
+        
 
         weth.mint(address(vault), 5 ether); // 5 WETH = 10,000 USDC value
 
@@ -133,7 +140,7 @@ contract ComposableVaultTest is Test {
         uint256 usdcBefore = usdc.balanceOf(address(vault));
 
         vm.prank(curator);
-        valuationModule.setPrice(address(weth), 2500e18);
+        valuationModule.setManualPrice(address(weth), 2500e18);
 
         bytes memory params = abi.encodeCall(
             DexAdapter.execute,
@@ -231,9 +238,6 @@ contract ComposableVaultTest is Test {
     function test_DepositAfterSwap() public {
         vm.prank(investor1);
         vault.deposit(10_000 * 1e18, investor1);
-
-        vm.prank(curator);
-        valuationModule.setPrice(address(weth), 2000e18);
 
         bytes memory params = abi.encodeCall(
             DexAdapter.execute,
@@ -477,9 +481,6 @@ contract ComposableVaultTest is Test {
     function test_ExecutionViaVaultRequiresApproval() public {
         vm.prank(investor1);
         vault.deposit(1000 * 1e18, investor1);
-
-        vm.prank(curator);
-        valuationModule.setPrice(address(weth), 2000e18);
 
         bytes memory params = abi.encodeCall(
             DexAdapter.execute,
