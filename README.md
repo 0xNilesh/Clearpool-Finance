@@ -1,6 +1,10 @@
+<div align="center">
+
+<img src="./frontend/public/logo.png" alt="Clearpool Finance Logo" width="50%">
+
 # Clearpool Finance
 
-![Clearpool Finance Logo](./frontend/public/logo.png)
+</div>
 
 ## Description
 

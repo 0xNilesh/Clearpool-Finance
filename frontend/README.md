@@ -1,8 +1,10 @@
+<div align="center">
+
+<img src="./public/logo.png" alt="Clearpool Finance Logo" width="50%">
+
 # Clearpool Finance Frontend
 
-![Clearpool Finance Logo](./public/logo.png)
-
-# Clearpool Finance
+</div>
 
 The frontend application for Clearpool Finance - A decentralized investment platform that enables fund managers to create and manage investment vaults with transparent, on-chain governance.
 

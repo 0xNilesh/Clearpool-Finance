@@ -1,4 +1,10 @@
+<div align="center">
+
+<img src="../frontend/public/logo.png" alt="Clearpool Finance Logo" width="50%">
+
 # Clearpool Finance Contracts
+
+</div>
 
 Smart contracts for Clearpool Finance - A decentralized investment platform built on Mantle Sepolia Testnet.
 
@@ -49,82 +55,5 @@ Clearpool Finance enables fund managers to create and manage investment vaults w
 |--------------|-------------|---------|----------|
 | **PerformanceFeeModule** | [src/fees/PerformanceFeeModule.sol](src/fees/PerformanceFeeModule.sol) | `0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395) |
 
-### Integrations
 
-| Contract Name | Source Code | Address | Explorer |
-|--------------|-------------|---------|----------|
-| **UniswapV3Integration** | [src/integrations/UniswapV3Integration.sol](src/integrations/UniswapV3Integration.sol) | - | - |
-| **DefaultIntegration** | [src/integrations/DefaultIntegration.sol](src/integrations/DefaultIntegration.sol) | - | - |
 
-### Libraries
-
-| Contract Name | Source Code |
-|--------------|-------------|
-| **OracleLibrary** | [src/libraries/OracleLibrary.sol](src/libraries/OracleLibrary.sol) |
-| **Errors** | [src/libraries/Errors.sol](src/libraries/Errors.sol) |
-
-### Interfaces
-
-| Contract Name | Source Code |
-|--------------|-------------|
-| **IAdapter** | [src/interfaces/IAdapter.sol](src/interfaces/IAdapter.sol) |
-| **IValuationModule** | [src/interfaces/IValuationModule.sol](src/interfaces/IValuationModule.sol) |
-
-## Contract Architecture
-
-```
-┌─────────────────┐
-│  VaultFactory   │ ── Creates and manages vault instances
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  AssetVault     │ ── Individual investment vault (ERC4626)
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌─────────┐ ┌──────────────┐
-│ Adapter │ │ Governance  │
-│Registry │ │   Module    │
-└─────────┘ └──────────────┘
-```
-
-## Development
-
-### Prerequisites
-
-- [Foundry](https://book.getfoundry.sh/getting-started/installation)
-- Solidity ^0.8.20
-
-### Build
-
-```bash
-forge build
-```
-
-### Test
-
-```bash
-forge test
-```
-
-### Deploy
-
-```bash
-forge script script/Vault.s.sol:VaultScript --rpc-url $RPC_URL --broadcast --verify
-```
-
-## Security
-
-All contracts are deployed on Mantle Sepolia Testnet. For production deployments, ensure:
-
-- Comprehensive security audits
-- Multi-signature wallet controls
-- Timelock mechanisms for critical operations
-- Regular monitoring and updates
-
-## License
-
-See individual contract files for license information.
