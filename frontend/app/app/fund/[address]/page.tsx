@@ -638,6 +638,7 @@ export default function FundPage() {
   }, [isApproveSuccess])
 
   // Get similar vaults (other vaults excluding current)
+  // Use same return and AUM formatting as explore page
   const similarVaults = useMemo(() => {
     if (!vaults || !currentVault) return []
     return vaults
@@ -647,8 +648,8 @@ export default function FundPage() {
         address: v.address,
         name: v.name,
         category: "Vault",
-        return: v.perf,
-        aum: v.aum,
+        return: getRandomReturn(v.address), // Use same function as explore page
+        aum: formatAUM(v.totalAssets), // Use same function as explore page with totalAssets
       }))
   }, [vaults, currentVault, vaultAddress])
 
@@ -923,7 +924,7 @@ export default function FundPage() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">{fundData.name}</h1>
+            <h1 className="text-2xl font-bold text-foreground">{fundData.name}</h1>
               <p className="text-xs text-muted-foreground font-mono mt-1">
                 {vaultAddress}
               </p>
@@ -935,86 +936,7 @@ export default function FundPage() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-8">
-            {/* Chart Section */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <Select value={duration} onValueChange={setDuration}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1M">1 Month</SelectItem>
-                    <SelectItem value="3M">3 Months</SelectItem>
-                    <SelectItem value="6M">6 Months</SelectItem>
-                    <SelectItem value="1Y">1 Year</SelectItem>
-                    <SelectItem value="All">All Time</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="h-64 w-full">
-                {chartJsData ? (
-                  <Line data={chartJsData} options={chartOptions} />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            {/* Invest Section */}
-            <Card className="p-6">
-              <h2 className="text-xl font-bold text-foreground mb-4">Invest Amount (in USDC)</h2>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <label className="text-sm font-medium text-foreground whitespace-nowrap">
-                    Investment Amount (USDC)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="Enter amount in USDC"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    className="flex-1 border-2 border-border"
-                    disabled={isApproving || isDepositing || isApprovingTx || isDepositingTx}
-                  />
-                </div>
-                <Button
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                  onClick={handleInvest}
-                  disabled={
-                    !isConnected ||
-                    !amount ||
-                    parseFloat(amount) <= 0 ||
-                    isApproving ||
-                    isDepositing ||
-                    isApprovingTx ||
-                    isDepositingTx
-                  }
-                >
-                  {isApproving || isApprovingTx ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Approving USDC...
-                    </>
-                  ) : isDepositing || isDepositingTx ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Depositing...
-                    </>
-                  ) : (
-                    "Invest Now"
-                  )}
-                </Button>
-                {!isConnected && (
-                  <p className="text-sm text-muted-foreground text-center">
-                    Please connect your wallet to invest
-                  </p>
-                )}
-              </div>
-            </Card>
-
-            {/* Details Section */}
+            {/* Fund Details Section - First */}
             <Card className="p-6">
               <h2 className="text-xl font-bold text-foreground mb-4">Fund Details</h2>
               <div className="space-y-4">
@@ -1060,40 +982,29 @@ export default function FundPage() {
                       <span className="ml-2 text-muted-foreground">Loading holdings...</span>
                     </div>
                   ) : vaultHoldings.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Token</TableHead>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Token</TableHead>
                           <TableHead>Price (USDC)</TableHead>
-                          <TableHead>Current Percentage</TableHead>
+                        <TableHead>Current Percentage</TableHead>
                           <TableHead className="text-right">Amount (USD)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                         {vaultHoldings.map((holding, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-medium">{holding.token}</TableCell>
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{holding.token}</TableCell>
                             <TableCell>{holding.price}</TableCell>
-                            <TableCell>{holding.percentage}</TableCell>
-                            <TableCell className="text-right">{holding.amount}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                          <TableCell>{holding.percentage}</TableCell>
+                          <TableCell className="text-right">{holding.amount}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                   ) : (
                     <p className="text-sm text-muted-foreground py-4">No holdings found</p>
                   )}
-                </div>
-                <div className="pt-4 border-t">
-                  <p className="text-sm text-muted-foreground mb-4">
-                    If you believe the fund's current allocation is not performing optimally or needs adjustment, you can propose a rebalancing strategy that will be reviewed by the fund manager and voted on by other investors.
-                  </p>
-                  <Button
-                    onClick={handleProposeRebalance}
-                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    Propose a Fund Rebalance
-                  </Button>
                 </div>
                 <div className="pt-4 border-t">
                   <h3 className="font-semibold text-foreground mb-4">Active Proposals!</h3>
@@ -1130,27 +1041,121 @@ export default function FundPage() {
                 </div>
               </div>
             </Card>
+
+            {/* Fund Performance Chart Section - Below Fund Details */}
+            <Card className="p-6">
+              <h2 className="text-xl font-bold text-foreground mb-6">Fund Performance</h2>
+              <div className="flex items-center justify-between mb-6">
+                <Select value={duration} onValueChange={setDuration}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1M">1 Month</SelectItem>
+                    <SelectItem value="3M">3 Months</SelectItem>
+                    <SelectItem value="6M">6 Months</SelectItem>
+                    <SelectItem value="1Y">1 Year</SelectItem>
+                    <SelectItem value="All">All Time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="h-64 w-full">
+                {chartJsData ? (
+                  <Line data={chartJsData} options={chartOptions} />
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* If you believe Section - At the bottom */}
+            <Card className="p-6">
+              <p className="text-sm text-muted-foreground mb-4">
+                If you believe the fund's current allocation is not performing optimally or needs adjustment, you can propose a rebalancing strategy that will be reviewed by the fund manager and voted on by other investors.
+              </p>
+              <Button
+                onClick={handleProposeRebalance}
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Propose a Fund Rebalance
+              </Button>
+            </Card>
           </div>
 
-          {/* Similar Funds Sidebar - Sticky */}
-          <aside className="lg:sticky lg:top-20 h-fit">
+          {/* Right Sidebar - Sticky with Invest Amount on top and Similar Funds below */}
+          <aside className="lg:sticky lg:top-20 h-fit space-y-6">
+            {/* Invest Amount Section - Top of sidebar */}
+            <Card className="p-6">
+              <h2 className="text-xl font-bold text-foreground mb-4">Invest Amount (in USDC)</h2>
+              <div className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Investment Amount (USDC)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="Enter amount in USDC"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="border-2 border-border"
+                    disabled={isApproving || isDepositing || isApprovingTx || isDepositingTx}
+                  />
+                </div>
+                <Button
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={handleInvest}
+                  disabled={
+                    !isConnected ||
+                    !amount ||
+                    parseFloat(amount) <= 0 ||
+                    isApproving ||
+                    isDepositing ||
+                    isApprovingTx ||
+                    isDepositingTx
+                  }
+                >
+                  {isApproving || isApprovingTx ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Approving USDC...
+                    </>
+                  ) : isDepositing || isDepositingTx ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Depositing...
+                    </>
+                  ) : (
+                    "Invest Now"
+                  )}
+                </Button>
+                {!isConnected && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Please connect your wallet to invest
+                  </p>
+                )}
+              </div>
+            </Card>
+
+            {/* Similar Funds Section - Below Invest Amount, scrollable */}
             <Card className="p-6">
               <h2 className="text-xl font-bold text-foreground mb-4">Similar Funds</h2>
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[600px] overflow-y-auto">
                 {similarVaults.length > 0 ? (
                   similarVaults.map((fund) => (
-                    <div
+                  <div
                       key={fund.address}
-                      className="p-4 border rounded-lg hover:border-primary/50 transition cursor-pointer"
+                    className="p-4 border rounded-lg hover:border-primary/50 transition cursor-pointer"
                       onClick={() => router.push(`/app/fund/${fund.address}`)}
-                    >
-                      <h3 className="font-semibold text-foreground mb-1">{fund.name}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">{fund.category}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-primary font-semibold">{fund.return}</span>
-                        <span className="text-xs text-muted-foreground">{fund.aum}</span>
-                      </div>
+                  >
+                    <h3 className="font-semibold text-foreground mb-1">{fund.name}</h3>
+                    <p className="text-sm text-muted-foreground mb-2">{fund.category}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-primary font-semibold">{fund.return}</span>
+                      <span className="text-xs text-muted-foreground">{fund.aum}</span>
                     </div>
+                  </div>
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">No other vaults available</p>

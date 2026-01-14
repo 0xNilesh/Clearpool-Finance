@@ -1,66 +1,130 @@
-## Foundry
+# Clearpool Finance Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Smart contracts for Clearpool Finance - A decentralized investment platform built on Mantle Sepolia Testnet.
 
-Foundry consists of:
+## Overview
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+Clearpool Finance enables fund managers to create and manage investment vaults with transparent, on-chain governance. Investors can deposit funds, track performance, and participate in governance decisions.
 
-## Documentation
+## Network
 
-https://book.getfoundry.sh/
+- **Network**: Mantle Sepolia Testnet
+- **Chain ID**: 5003
+- **Explorer**: [Mantle Sepolia Explorer](https://sepolia.mantlescan.xyz/)
 
-## Usage
+## Contracts
+
+### Core Contracts
+
+| Contract Name | Source Code | Address | Explorer |
+|--------------|-------------|---------|----------|
+| **VaultFactory** | [src/core/VaultFactory.sol](src/core/VaultFactory.sol) | `0x4F532db1ce4f33170b21F6a97A8973e9499BbD75` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0x4F532db1ce4f33170b21F6a97A8973e9499BbD75) |
+| **AssetVault** | [src/core/AssetVault.sol](src/core/AssetVault.sol) | `0xC107Bf787cba6BD5d68b528e7e5ae085f8e3E7D5` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0xC107Bf787cba6BD5d68b528e7e5ae085f8e3E7D5) |
+
+### Execution & Adapters
+
+| Contract Name | Source Code | Address | Explorer |
+|--------------|-------------|---------|----------|
+| **AdapterRegistry** | [src/execution/AdapterRegistry.sol](src/execution/AdapterRegistry.sol) | `0x09676C46aaE81a2E0e13ce201040400765BFe329` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0x09676C46aaE81a2E0e13ce201040400765BFe329) |
+| **DexAdapter** | [src/adapters/DexAdapter.sol](src/adapters/DexAdapter.sol) | `0xe1327FE9b457Ad1b4601FdD2afcAdAef198d6BA6` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0xe1327FE9b457Ad1b4601FdD2afcAdAef198d6BA6) |
+| **LendingAdapter** | [src/adapters/LendingAdapter.sol](src/adapters/LendingAdapter.sol) | - | - |
+| **RWAAdapter** | [src/adapters/RWAAdapter.sol](src/adapters/RWAAdapter.sol) | - | - |
+| **YieldAdapter** | [src/adapters/YieldAdapter.sol](src/adapters/YieldAdapter.sol) | - | - |
+
+### Valuation & Pricing
+
+| Contract Name | Source Code | Address | Explorer |
+|--------------|-------------|---------|----------|
+| **ValuationModule** | [src/valuation/ValuationModule.sol](src/valuation/ValuationModule.sol) | `0x3e437EaCf65e5a0D311EF139B29D825b41619435` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0x3e437EaCf65e5a0D311EF139B29D825b41619435) |
+
+### Governance
+
+| Contract Name | Source Code | Address | Explorer |
+|--------------|-------------|---------|----------|
+| **GovernanceModule** | [src/governance/GovernanceModule.sol](src/governance/GovernanceModule.sol) | `0xc0356fa9B4766c6b1561eC98AF78Ab7A3b284B88` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0xc0356fa9B4766c6b1561eC98AF78Ab7A3b284B88) |
+
+### Fees
+
+| Contract Name | Source Code | Address | Explorer |
+|--------------|-------------|---------|----------|
+| **PerformanceFeeModule** | [src/fees/PerformanceFeeModule.sol](src/fees/PerformanceFeeModule.sol) | `0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395` | [View on Explorer](https://sepolia.mantlescan.xyz/address/0xf454C04EE5365F9a195A00267e4a1DBA6a7b9395) |
+
+### Integrations
+
+| Contract Name | Source Code | Address | Explorer |
+|--------------|-------------|---------|----------|
+| **UniswapV3Integration** | [src/integrations/UniswapV3Integration.sol](src/integrations/UniswapV3Integration.sol) | - | - |
+| **DefaultIntegration** | [src/integrations/DefaultIntegration.sol](src/integrations/DefaultIntegration.sol) | - | - |
+
+### Libraries
+
+| Contract Name | Source Code |
+|--------------|-------------|
+| **OracleLibrary** | [src/libraries/OracleLibrary.sol](src/libraries/OracleLibrary.sol) |
+| **Errors** | [src/libraries/Errors.sol](src/libraries/Errors.sol) |
+
+### Interfaces
+
+| Contract Name | Source Code |
+|--------------|-------------|
+| **IAdapter** | [src/interfaces/IAdapter.sol](src/interfaces/IAdapter.sol) |
+| **IValuationModule** | [src/interfaces/IValuationModule.sol](src/interfaces/IValuationModule.sol) |
+
+## Contract Architecture
+
+```
+┌─────────────────┐
+│  VaultFactory   │ ── Creates and manages vault instances
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  AssetVault     │ ── Individual investment vault (ERC4626)
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │         │
+    ▼         ▼
+┌─────────┐ ┌──────────────┐
+│ Adapter │ │ Governance  │
+│Registry │ │   Module    │
+└─────────┘ └──────────────┘
+```
+
+## Development
+
+### Prerequisites
+
+- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- Solidity ^0.8.20
 
 ### Build
 
-```shell
-$ forge build
+```bash
+forge build
 ```
 
 ### Test
 
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
+```bash
+forge test
 ```
 
 ### Deploy
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+```bash
+forge script script/Vault.s.sol:VaultScript --rpc-url $RPC_URL --broadcast --verify
 ```
 
-### Cast
+## Security
 
-```shell
-$ cast <subcommand>
-```
+All contracts are deployed on Mantle Sepolia Testnet. For production deployments, ensure:
 
-### Help
+- Comprehensive security audits
+- Multi-signature wallet controls
+- Timelock mechanisms for critical operations
+- Regular monitoring and updates
 
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+## License
+
+See individual contract files for license information.

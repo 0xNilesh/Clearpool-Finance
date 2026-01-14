@@ -4,19 +4,42 @@ import { Card } from "@/components/ui/card"
 import { useAllVaults } from "@/hooks/use-vaults"
 import { useMemo } from "react"
 import { formatUnits } from "viem"
+import { useAccount } from "wagmi"
 
 export default function VaultOverview() {
-  const { vaults, isLoading, vaultCount } = useAllVaults()
+  const { address: connectedAddress } = useAccount()
+  const { vaults: allVaults, isLoading, vaultCount } = useAllVaults()
+
+  // Filter vaults to only show those created by the connected user
+  const vaults = useMemo(() => {
+    if (!connectedAddress || !allVaults) return []
+    return allVaults.filter(vault => 
+      vault.curator.toLowerCase() === connectedAddress.toLowerCase()
+    )
+  }, [allVaults, connectedAddress])
 
   const totalAUM = useMemo(() => {
-    if (!vaults || vaults.length === 0) return "$0.00M"
-    const total = vaults.reduce((sum, vault) => {
+    if (!vaults || vaults.length === 0) return "$0.00"
+    
+    // Calculate total AUM from all user's vaults
+    const totalInUSDC = vaults.reduce((sum, vault) => {
       if (vault.totalAssets) {
         return sum + Number(formatUnits(vault.totalAssets, 18))
       }
       return sum
     }, 0)
-    return `$${(total / 1e6).toFixed(2)}M`
+    
+    // Format based on size (same logic as formatAUM in other components)
+    if (totalInUSDC >= 1_000_000) {
+      // Show in millions (M)
+      return `$${(totalInUSDC / 1_000_000).toFixed(2)}M`
+    } else if (totalInUSDC >= 1_000) {
+      // Show in thousands (K)
+      return `$${(totalInUSDC / 1_000).toFixed(2)}K`
+    } else {
+      // Show as is
+      return `$${totalInUSDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    }
   }, [vaults])
 
   const avgPerformance = useMemo(() => {
@@ -38,7 +61,7 @@ export default function VaultOverview() {
         <div>
           <p className="text-sm text-muted-foreground mb-1">Active Vaults</p>
           <p className="text-2xl font-bold text-foreground">
-            {isLoading ? "..." : vaultCount}
+            {isLoading ? "..." : vaults.length}
           </p>
         </div>
         <div>

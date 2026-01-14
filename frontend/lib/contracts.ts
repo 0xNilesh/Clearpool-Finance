@@ -14,8 +14,39 @@ export type ContractName =
   | 'DexAdapter'
   | 'UniswapV3Integration';
 
-// Network configuration
-export const NETWORK_CONFIG = contractsConfig.network;
+// Get RPC URLs from environment variables
+// RPC URLs must be set in environment variables - no fallback to config file
+const getRpcUrls = (): string[] => {
+  const urls: string[] = []
+  
+  // Add RPC URLs from environment variables (in order of priority)
+  if (process.env.NEXT_PUBLIC_RPC_URL_1) urls.push(process.env.NEXT_PUBLIC_RPC_URL_1)
+  if (process.env.NEXT_PUBLIC_RPC_URL_2) urls.push(process.env.NEXT_PUBLIC_RPC_URL_2)
+  if (process.env.NEXT_PUBLIC_RPC_URL_3) urls.push(process.env.NEXT_PUBLIC_RPC_URL_3)
+  if (process.env.NEXT_PUBLIC_RPC_URL_4) urls.push(process.env.NEXT_PUBLIC_RPC_URL_4)
+  
+  // If no env vars are set, throw an error or use a minimal fallback
+  if (urls.length === 0) {
+    console.warn('⚠️ No RPC URLs found in environment variables. Please set NEXT_PUBLIC_RPC_URL_1, etc.')
+    // Minimal fallback - but this should not happen in production
+    return ['https://rpc.sepolia.mantle.xyz']
+  }
+  
+  return urls
+}
+
+// Get primary RPC URL (first in the list)
+const getPrimaryRpcUrl = (): string => {
+  const urls = getRpcUrls()
+  return urls[0] || 'https://rpc.sepolia.mantle.xyz' // Minimal fallback
+}
+
+// Network configuration with RPC URLs from environment
+export const NETWORK_CONFIG = {
+  ...contractsConfig.network,
+  rpcUrl: getPrimaryRpcUrl(),
+  rpcUrls: getRpcUrls(),
+};
 
 // Contract addresses
 export const CONTRACT_ADDRESSES = {

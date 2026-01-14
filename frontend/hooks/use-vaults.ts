@@ -3,7 +3,57 @@
 import { useReadContract, useReadContracts } from 'wagmi'
 import { CONTRACTS } from '@/lib/contracts'
 import { formatUnits } from 'viem'
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
+
+// Blacklisted vault addresses (demo/test vaults to exclude from public listings)
+const BLACKLISTED_VAULTS: string[] = [
+  '0x6b86e2D19dD44f1C044922C61ff095062D7db99c'.toLowerCase(), // Large Cap Funds (demo)
+]
+
+// Cache configuration
+const CACHE_KEY_VAULT_COUNT = 'clearpool_vault_count'
+const CACHE_KEY_VAULT_DATA = 'clearpool_vault_data'
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes in milliseconds
+
+// Cache utilities with BigInt serialization support
+const getCachedData = <T,>(key: string): { data: T; timestamp: number } | null => {
+  if (typeof window === 'undefined') return null
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    const parsed = JSON.parse(cached, (key, value) => {
+      // Handle BigInt serialization (stored as strings)
+      if (typeof value === 'string' && value.startsWith('BIGINT:')) {
+        return BigInt(value.slice(7))
+      }
+      return value
+    })
+    const age = Date.now() - parsed.timestamp
+    if (age > CACHE_DURATION) {
+      localStorage.removeItem(key)
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+const setCachedData = <T,>(key: string, data: T): void => {
+  if (typeof window === 'undefined') return
+  try {
+    // Serialize BigInt values as strings
+    const serialized = JSON.stringify({ data, timestamp: Date.now() }, (key, value) => {
+      if (typeof value === 'bigint') {
+        return `BIGINT:${value.toString()}`
+      }
+      return value
+    })
+    localStorage.setItem(key, serialized)
+  } catch {
+    // Ignore storage errors (e.g., quota exceeded)
+  }
+}
 
 export interface VaultInfo {
   id: number
@@ -33,15 +83,40 @@ export interface VaultData {
 }
 
 export function useVaultCount() {
+  const [cachedCount, setCachedCount] = useState<number | null>(null)
+  
+  // Check cache on mount
+  useEffect(() => {
+    const cached = getCachedData<number>(CACHE_KEY_VAULT_COUNT)
+    if (cached) {
+      setCachedCount(cached.data)
+    }
+  }, [])
+
   const { data: vaultCount, isLoading, error } = useReadContract({
     address: CONTRACTS.VaultFactory.address as `0x${string}`,
     abi: CONTRACTS.VaultFactory.abi,
     functionName: 'vaultCount',
+    query: {
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: cachedCount === null, // Only refetch on mount if no cache
+      staleTime: CACHE_DURATION, // Consider data stale after 5 minutes
+    },
   })
 
+  // Update cache when data changes
+  useEffect(() => {
+    if (vaultCount !== undefined) {
+      const count = Number(vaultCount)
+      setCachedData(CACHE_KEY_VAULT_COUNT, count)
+      setCachedCount(count)
+    }
+  }, [vaultCount])
+
   return {
-    vaultCount: vaultCount ? Number(vaultCount) : 0,
-    isLoading,
+    vaultCount: vaultCount ? Number(vaultCount) : (cachedCount ?? 0),
+    isLoading: isLoading && cachedCount === null,
     error,
   }
 }
@@ -88,6 +163,10 @@ export function useAllVaults() {
     contracts: vaultInfoContracts,
     query: {
       enabled: vaultIds.length > 0,
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch on mount - use cache
+      staleTime: CACHE_DURATION,
     },
   })
 
@@ -99,8 +178,12 @@ export function useAllVaults() {
       .map((info, index) => {
         if (info.status === 'success' && info.result) {
           const vaultInfo = info.result as VaultInfo
-          // Only include vaults with valid addresses
-          if (vaultInfo.vault && vaultInfo.vault !== '0x0000000000000000000000000000000000000000') {
+          // Only include vaults with valid addresses and exclude blacklisted vaults
+          if (
+            vaultInfo.vault && 
+            vaultInfo.vault !== '0x0000000000000000000000000000000000000000' &&
+            !BLACKLISTED_VAULTS.includes(vaultInfo.vault.toLowerCase())
+          ) {
             return {
               id: index + 1,
               vaultInfo,
@@ -144,12 +227,33 @@ export function useAllVaults() {
     contracts: vaultDataContracts,
     query: {
       enabled: vaultDataContracts.length > 0,
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch on mount - use cache
+      staleTime: CACHE_DURATION,
     },
   })
 
-  // Combine all data
+  // Combine all data with caching
   const vaults = useMemo(() => {
-    if (validVaults.length === 0 || !vaultDataResults) return []
+    // Check cache first
+    const cached = getCachedData<VaultData[]>(CACHE_KEY_VAULT_DATA)
+    if (cached && validVaults.length > 0) {
+      // Verify cached data matches current vaults (in case new vaults were created)
+      const cachedAddresses = new Set(cached.data.map(v => v.address.toLowerCase()))
+      const currentAddresses = new Set(validVaults.map(v => v.vaultInfo.vault.toLowerCase()))
+      const addressesMatch = cachedAddresses.size === currentAddresses.size &&
+        Array.from(cachedAddresses).every(addr => currentAddresses.has(addr))
+      
+      if (addressesMatch) {
+        return cached.data
+      }
+    }
+
+    if (validVaults.length === 0 || !vaultDataResults) {
+      // Return cached data if available, even if stale
+      return cached?.data || []
+    }
 
     const result: VaultData[] = []
 
@@ -201,6 +305,11 @@ export function useAllVaults() {
         perf,
       })
     })
+
+    // Cache the result
+    if (result.length > 0) {
+      setCachedData(CACHE_KEY_VAULT_DATA, result)
+    }
 
     return result
   }, [validVaults, vaultDataResults])

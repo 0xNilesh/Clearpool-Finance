@@ -171,6 +171,10 @@ export default function Portfolio() {
     contracts: priceContracts,
     query: {
       enabled: priceContracts.length > 0,
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch on mount - use cache
+      staleTime: 5 * 60 * 1000, // 5 minutes
     },
   })
 
@@ -336,6 +340,8 @@ export default function Portfolio() {
     args: sharesToRedeem ? [sharesToRedeem] : undefined,
     query: {
       enabled: !!selectedHolding && !!sharesToRedeem && isConnected,
+      refetchInterval: false, // Don't auto-refetch preview calls
+      refetchOnWindowFocus: false,
     },
   })
 
@@ -355,6 +361,10 @@ export default function Portfolio() {
     args: selectedHolding?.vaultAddress ? [selectedHolding.vaultAddress as `0x${string}`] : undefined,
     query: {
       enabled: !!selectedHolding && isConnected,
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      staleTime: 5 * 60 * 1000,
     },
   })
 
@@ -372,6 +382,8 @@ export default function Portfolio() {
     args: address && selectedHolding ? [address, selectedHolding.vaultAddress as `0x${string}`] : undefined,
     query: {
       enabled: !!address && !!selectedHolding && isConnected,
+      refetchInterval: false, // Don't auto-refetch allowance (only refetch after approval)
+      refetchOnWindowFocus: false,
     },
   })
 

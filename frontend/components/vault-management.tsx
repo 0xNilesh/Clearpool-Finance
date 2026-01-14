@@ -60,6 +60,12 @@ function USDCBalanceDisplay({ vaultAddress }: { vaultAddress: string }) {
     ] as const,
     functionName: "balanceOf",
     args: [vaultAddress as `0x${string}`],
+    query: {
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      staleTime: 5 * 60 * 1000,
+    },
   })
 
   if (isLoading) {
@@ -99,6 +105,8 @@ function VaultHoldings({
     functionName: "valuationModule",
     query: {
       enabled: !!vaultAddress,
+      refetchInterval: false, // Valuation module doesn't change, no need to refetch
+      refetchOnWindowFocus: false,
     },
   })
 
@@ -126,6 +134,10 @@ function VaultHoldings({
     contracts: balanceContracts,
     query: {
       enabled: balanceContracts.length > 0 && !!vaultAddress,
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch on mount
+      staleTime: 5 * 60 * 1000,
     },
   })
 
@@ -155,6 +167,10 @@ function VaultHoldings({
     contracts: priceContracts,
     query: {
       enabled: priceContracts.length > 0 && !!valuationModuleAddress,
+      refetchInterval: 300000, // Refetch every 5 minutes
+      refetchOnWindowFocus: false,
+      refetchOnMount: false, // Don't refetch on mount
+      staleTime: 5 * 60 * 1000,
     },
   })
 
@@ -382,7 +398,7 @@ export default function VaultManagement() {
       },
       rpcUrls: {
         default: {
-          http: (NETWORK_CONFIG as any).rpcUrls || [NETWORK_CONFIG.rpcUrl],
+          http: NETWORK_CONFIG.rpcUrls || [NETWORK_CONFIG.rpcUrl],
         },
       },
     })
@@ -393,7 +409,15 @@ export default function VaultManagement() {
   }
 
   // Fetch vaults dynamically from contract
-  const { vaults, isLoading } = useAllVaults()
+  const { vaults: allVaults, isLoading } = useAllVaults()
+
+  // Filter vaults to only show those created by the connected user
+  const vaults = useMemo(() => {
+    if (!connectedAddress || !allVaults) return []
+    return allVaults.filter(vault => 
+      vault.curator.toLowerCase() === connectedAddress.toLowerCase()
+    )
+  }, [allVaults, connectedAddress])
 
   // Fixed base asset - USDC
   const baseAsset = "0x70c3C79d33A9b08F1bc1e7DB113D1588Dad7d8Bc" // USDC address

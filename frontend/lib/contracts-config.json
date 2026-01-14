@@ -1,13 +1,7 @@
 {
   "network": {
     "name": "Mantle Sepolia",
-    "chainId": 5003,
-    "rpcUrl": "https://rpc.sepolia.mantle.xyz",
-    "rpcUrls": [
-      "https://rpc.sepolia.mantle.xyz",
-      "https://mantle-sepolia.infura.io/v3/7b5f929ca303443fb2c9f2c29ee93a6b",
-      "https://mantle-mainnet.g.alchemy.com/v2/pqs1extVj52cPDRBz_Si8"
-    ]
+    "chainId": 5003
   },
   "contracts": {
     "factory": "0x4c79A13451E7c338aF1798DD15d6e6d8888b9637",

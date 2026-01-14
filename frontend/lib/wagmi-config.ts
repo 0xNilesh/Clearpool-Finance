@@ -13,7 +13,7 @@ const mantleSepolia = defineChain({
   },
   rpcUrls: {
     default: {
-      http: (NETWORK_CONFIG as any).rpcUrls || [NETWORK_CONFIG.rpcUrl],
+      http: NETWORK_CONFIG.rpcUrls || [NETWORK_CONFIG.rpcUrl],
     },
   },
   blockExplorers: {

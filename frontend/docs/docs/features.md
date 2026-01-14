@@ -139,7 +139,6 @@ Make critical fund management decisions quickly and efficiently:
 - **Smart Contract Audits**: All contracts audited by leading security firms
 - **Multi-signature Controls**: Critical operations require multiple approvals
 - **Timelock Mechanisms**: Time-delayed execution for sensitive operations
-- **Insurance Coverage**: Additional protection for investor funds
 
 ### Transparency & Reporting
 

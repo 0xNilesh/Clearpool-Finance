@@ -29,7 +29,6 @@ Multi-layered security architecture including:
 - Smart contract audits by leading security firms
 - Multi-signature controls for critical operations
 - Timelock mechanisms for fund management actions
-- Insurance coverage for additional protection
 
 ### Flexibility
 Support for multiple asset classes through adapter infrastructure, enabling funds to invest in:

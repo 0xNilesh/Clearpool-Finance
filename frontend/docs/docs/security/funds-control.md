@@ -151,14 +151,6 @@ If you discover a security vulnerability:
 3. Provide detailed information about the issue
 4. Follow responsible disclosure practices
 
-## Insurance Coverage
-
-Clearpool Finance may offer additional protection through:
-
-- **Insurance Protocols**: Integration with DeFi insurance protocols
-- **Coverage Options**: Optional coverage for fund deposits
-- **Claim Processes**: Clear processes for insurance claims
-
 ## Compliance & Auditing
 
 - **Regular Audits**: Periodic audits of smart contracts and operations
