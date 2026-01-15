@@ -6,11 +6,11 @@
 
 </div>
 
-The frontend application for Clearpool Finance - A decentralized investment platform that enables fund managers to create and manage investment vaults with transparent, on-chain governance.
+The frontend application for Clearpool Finance - A decentralized investment platform built on DeFi composability principles that enables fund managers to create and manage investment vaults with transparent, on-chain governance.
 
 ## Overview
 
-This is the frontend repository for Clearpool Finance. All frontend code, components, and configurations are contained in this directory. The application provides a user-friendly interface for investors and fund managers to interact with the Clearpool Finance smart contracts.
+This is the frontend repository for Clearpool Finance. All frontend code, components, and configurations are contained in this directory. The application provides a user-friendly interface for investors and fund managers to interact with the Clearpool Finance smart contracts. The platform features a composable adapter architecture where any adapter can be integrated or managers can create custom adapters for their unique investment strategies, enabling unlimited DeFi protocol integration and strategy customization.
 
 ## Features
 
@@ -24,7 +24,8 @@ This is the frontend repository for Clearpool Finance. All frontend code, compon
 ### For Fund Managers
 - **Vault Creation**: Create and deploy new investment vaults
 - **Fund Management**: Manage vault assets and strategies
-- **Adapter Integration**: Connect with various DeFi protocols
+- **Composable Adapter System**: Connect with various DeFi protocols through our modular adapter infrastructure - any adapter can be added to the platform, or managers can create custom adapters for their unique investment strategies
+- **Custom Adapter Development**: Build and deploy your own adapters to integrate with any DeFi protocol, enabling unlimited composability and strategy customization
 - **Performance Tracking**: Monitor fund performance and AUM
 - **Governance Tools**: Propose and manage fund rebalancing
 
@@ -64,25 +65,13 @@ frontend/
 - **AppBanner**: Statistics and overview
 - **MetricsMarquee**: Landing page metrics display
 
-## Configuration
-
-### Environment Variables
-
-Create a `.env.local` file with the following:
-
-```env
-NEXT_PUBLIC_RPC_URL_1=https://your-rpc-url-1
-NEXT_PUBLIC_RPC_URL_2=https://your-rpc-url-2
-NEXT_PUBLIC_RPC_URL_3=https://your-rpc-url-3
-NEXT_PUBLIC_RPC_URL_4=https://your-rpc-url-4
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your-project-id
-```
-
-### Network Configuration
-
-The application is configured for **Mantle Sepolia Testnet** (Chain ID: 5003).
 
 ## Features & Capabilities
+
+### DeFi Composability
+- **Modular Adapter Infrastructure**: Open, extensible adapter system where developers and fund managers can create, deploy, and integrate custom adapters
+- **Universal Protocol Integration**: Seamless integration with any DeFi protocol through the composable adapter architecture
+- **Custom Strategy Development**: Fund managers can build custom adapters tailored to their specific investment strategies
 
 ### Real-time Data
 - On-chain vault data fetching
@@ -109,7 +98,3 @@ Comprehensive documentation is available in the `/docs` directory, built with Do
 - Feature documentation
 - Contract addresses
 - API references
-
-## License
-
-See the main repository LICENSE file for details.

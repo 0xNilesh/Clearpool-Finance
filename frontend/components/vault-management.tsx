@@ -689,7 +689,7 @@ export default function VaultManagement() {
         vaultAddress: vaultAddress,
         adapterId: adapterId,
         params: swapParams,
-      })
+    })
       
       writeRebalance({
         address: vaultAddress,
@@ -699,9 +699,9 @@ export default function VaultManagement() {
       })
 
       toast.info("Rebalance transaction submitted. Waiting for confirmation...")
-      setRebalanceDialogOpen(false)
-      setSelectedToken("")
-      setAmount("")
+    setRebalanceDialogOpen(false)
+    setSelectedToken("")
+    setAmount("")
     } catch (error: any) {
       toast.error(`Failed to execute rebalance: ${error?.message || "Unknown error"}`)
     }
@@ -953,8 +953,8 @@ export default function VaultManagement() {
           </div>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {vaults.map((vault) => {
+      <div className="space-y-4">
+        {vaults.map((vault) => {
           const isExpanded = expandedVaults.has(vault.id)
           return (
             <Card key={vault.id} className="p-6 overflow-hidden">
@@ -1014,7 +1014,7 @@ export default function VaultManagement() {
             </Card>
           )
         })}
-        </div>
+      </div>
       )}
 
       <Dialog open={rebalanceDialogOpen} onOpenChange={setRebalanceDialogOpen}>
@@ -1051,7 +1051,7 @@ export default function VaultManagement() {
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select a token" />
                 </SelectTrigger>
-                  <SelectContent>
+                <SelectContent>
                     {availableTokens.map((token) => {
                       // Check testTokens first
                       let tokenAddress: string | null = null
@@ -1086,7 +1086,7 @@ export default function VaultManagement() {
                       }
                       
                       return (
-                        <SelectItem key={token} value={token}>
+                    <SelectItem key={token} value={token}>
                           <div className="flex items-center justify-between w-full gap-4">
                             <div className="flex items-center gap-2">
                               <span>{token}</span>
@@ -1100,10 +1100,10 @@ export default function VaultManagement() {
                               </span>
                             )}
                           </div>
-                        </SelectItem>
+                    </SelectItem>
                       )
                     })}
-                  </SelectContent>
+                </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">

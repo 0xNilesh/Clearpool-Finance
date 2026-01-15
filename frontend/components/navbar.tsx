@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import { useAccount, useDisconnect } from "wagmi"
 import { useRouter } from "next/navigation"
-import { User, LogOut } from "lucide-react"
+import { User, LogOut, Briefcase } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,10 +24,6 @@ export default function Navbar() {
   const formatAddress = (addr: string | undefined) => {
     if (!addr) return ""
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
-  }
-
-  const handleGetStarted = () => {
-    router.push("/app")
   }
 
   const handleSignIn = () => {
@@ -67,7 +63,13 @@ export default function Navbar() {
               </Link>
             </div>
           </div>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-4">
+            <Link 
+              href="/manager" 
+              className="hidden md:flex text-sm font-medium text-foreground hover:text-primary transition duration-200"
+            >
+              Start Fund
+            </Link>
             {isConnected && address ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -79,9 +81,13 @@ export default function Navbar() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => router.push("/app/profile")}>
+                  <DropdownMenuItem onClick={() => router.push("/app/portfolio")}>
                     <User className="w-4 h-4 mr-2" />
                     Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/manager")}>
+                    <Briefcase className="w-4 h-4 mr-2" />
+                    Manage Funds
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
@@ -91,21 +97,13 @@ export default function Navbar() {
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
-              <>
-                <Button 
-                  variant="outline" 
-                  onClick={handleSignIn}
-                  className="border-border hover:bg-primary/10 bg-transparent"
-                >
-                  Sign In
-            </Button>
-                <Button 
-                  onClick={handleGetStarted}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
-                >
-              Get Started
-            </Button>
-              </>
+              <Button 
+                variant="outline" 
+                onClick={handleSignIn}
+                className="border-border hover:bg-primary/10 bg-transparent"
+              >
+                Sign In
+              </Button>
             )}
           </div>
         </div>

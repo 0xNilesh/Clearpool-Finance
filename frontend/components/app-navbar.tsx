@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Search, User, LogOut } from "lucide-react"
+import { Search, User, LogOut, Briefcase } from "lucide-react"
 import { useAccount, useDisconnect } from "wagmi"
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import {
@@ -109,9 +109,13 @@ export default function AppNavbar({ activeTab, setActiveTab }: AppNavbarProps) {
             </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => router.push("/app/profile")}>
+                  <DropdownMenuItem onClick={() => router.push("/app/portfolio")}>
                     <User className="w-4 h-4 mr-2" />
                     Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/manager")}>
+                    <Briefcase className="w-4 h-4 mr-2" />
+                    Manage Funds
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut} className="text-destructive">

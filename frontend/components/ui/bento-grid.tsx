@@ -1,5 +1,8 @@
+"use client"
+
 import { ComponentPropsWithoutRef, ReactNode } from "react"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation"
 
 interface BentoGridProps extends ComponentPropsWithoutRef<"div"> {
   children: ReactNode
@@ -14,6 +17,7 @@ interface BentoCardProps extends ComponentPropsWithoutRef<"div"> {
   description: string
   cta: string
   href?: string
+  onClick?: () => void
 }
 
 const BentoGrid = ({ children, className, ...props }: BentoGridProps) => {
@@ -37,8 +41,21 @@ const BentoCard = ({
   Icon,
   description,
   cta,
+  href,
+  onClick,
   ...props
-}: BentoCardProps) => (
+}: BentoCardProps) => {
+  const router = useRouter()
+  
+  const handleClick = () => {
+    if (onClick) {
+      onClick()
+    } else if (href) {
+      router.push(href)
+    }
+  }
+  
+  return (
   <div
     key={name}
     className={cn(
@@ -47,8 +64,10 @@ const BentoCard = ({
       "bg-background [box-shadow:0_0_0_1px_rgba(0,0,0,.03),0_2px_4px_rgba(0,0,0,.05),0_12px_24px_rgba(0,0,0,.05)]",
       // dark styles
       "dark:bg-background transform-gpu dark:[box-shadow:0_-20px_80px_-20px_#ffffff1f_inset] dark:[border:1px_solid_rgba(255,255,255,.1)]",
+      (href || onClick) && "cursor-pointer",
       className
     )}
+    onClick={handleClick}
     {...props}
   >
     <div>{background}</div>
@@ -81,7 +100,8 @@ const BentoCard = ({
     </div>
     <div className="pointer-events-none absolute inset-0 transform-gpu transition-all duration-300 group-hover:bg-black/[.03] group-hover:dark:bg-neutral-800/10" />
   </div>
-)
+  )
+}
 
 export { BentoCard, BentoGrid }
 

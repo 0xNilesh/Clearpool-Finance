@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 
 export default function Footer() {
   return (
@@ -7,9 +8,13 @@ export default function Footer() {
         <div className="grid md:grid-cols-4 gap-8 mb-12">
           <div>
             <div className="flex items-center gap-2 text-lg font-bold mb-4">
-              <div className="h-6 w-6 rounded-lg bg-primary flex items-center justify-center text-foreground font-bold text-xs">
-                C
-              </div>
+              <Image
+                src="/logo.png"
+                alt="Clearpool Finance"
+                width={24}
+                height={24}
+                className="h-6 w-6 object-contain"
+              />
               <span>Clearpool</span>
             </div>
             <p className="text-sm opacity-80">Decentralized investing made simple and transparent.</p>
@@ -25,11 +30,6 @@ export default function Footer() {
               <li>
                 <Link href="#" className="hover:text-primary transition">
                   Strategies
-                </Link>
-              </li>
-              <li>
-                <Link href="#" className="hover:text-primary transition">
-                  Pricing
                 </Link>
               </li>
             </ul>

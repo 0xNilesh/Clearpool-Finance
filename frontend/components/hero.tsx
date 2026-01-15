@@ -69,7 +69,7 @@ export default function Hero() {
               size="lg" 
               variant="outline" 
               className="text-base font-semibold border-border bg-transparent"
-              onClick={() => router.push("/docs")}
+              onClick={() => router.push("/docs/intro")}
             >
               Learn More
             </Button>

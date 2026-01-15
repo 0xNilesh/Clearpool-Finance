@@ -8,7 +8,7 @@
 
 ## Description
 
-Clearpool Finance is a decentralized investment platform that enables fund managers to create and manage investment vaults with transparent, on-chain governance. Built on Mantle Sepolia Testnet, Clearpool provides a secure, transparent, and user-friendly way for investors to access professional investment strategies while maintaining full control over their assets.
+Clearpool Finance is a decentralized investment platform that enables fund managers to create and manage investment vaults with transparent, on-chain governance. Built on Mantle Sepolia Testnet, Clearpool leverages DeFi composability principles to provide a modular, extensible ecosystem where any adapter can be integrated or fund managers can create custom adapters for their specific investment strategies. This composable architecture ensures secure, transparent, and flexible access to professional investment strategies while maintaining full control over assets.
 
 ## Features
 
@@ -22,11 +22,14 @@ Clearpool Finance is a decentralized investment platform that enables fund manag
 ### For Fund Managers
 - **Vault Creation**: Create and deploy new investment vaults with customizable parameters
 - **Fund Management**: Manage vault assets and investment strategies
-- **Adapter Integration**: Connect with various DeFi protocols through adapter infrastructure
+- **Composable Adapter System**: Connect with various DeFi protocols through our modular adapter infrastructure - any adapter can be added to the platform, or managers can create custom adapters for their unique investment strategies
+- **Custom Adapter Development**: Build and deploy your own adapters to integrate with any DeFi protocol, enabling unlimited composability and strategy customization
 - **Performance Tracking**: Monitor fund performance, AUM, and investor metrics
 - **Governance Tools**: Propose and manage fund rebalancing strategies
 
 ### Platform Features
+- **DeFi Composability**: Fully composable architecture allowing seamless integration with any DeFi protocol through our adapter system
+- **Modular Adapter Infrastructure**: Open, extensible adapter system where developers and fund managers can create, deploy, and integrate custom adapters
 - **Smart Contract Audits**: All contracts audited by leading security firms
 - **Multi-signature Controls**: Critical operations require multiple approvals
 - **Timelock Mechanisms**: Time-delayed execution for sensitive operations

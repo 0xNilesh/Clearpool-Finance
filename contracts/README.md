@@ -6,11 +6,22 @@
 
 </div>
 
-Smart contracts for Clearpool Finance - A decentralized investment platform built on Mantle Sepolia Testnet.
+Smart contracts for Clearpool Finance - A decentralized investment platform built on Mantle Sepolia Testnet with a focus on DeFi composability and modular architecture.
 
 ## Overview
 
-Clearpool Finance enables fund managers to create and manage investment vaults with transparent, on-chain governance. Investors can deposit funds, track performance, and participate in governance decisions.
+Clearpool Finance enables fund managers to create and manage investment vaults with transparent, on-chain governance. The platform is built on composability principles, featuring a modular adapter system where any adapter can be integrated or fund managers can create custom adapters for their specific investment strategies. This composable architecture allows seamless integration with any DeFi protocol, enabling unlimited strategy customization and extensibility. Investors can deposit funds, track performance, and participate in governance decisions.
+
+## Composable Adapter Architecture
+
+Clearpool Finance is built on DeFi composability principles, featuring a modular adapter system that enables:
+
+- **Universal Adapter Integration**: Any adapter can be added to the platform, allowing seamless integration with any DeFi protocol
+- **Custom Adapter Development**: Fund managers can create and deploy their own adapters tailored to specific investment strategies
+- **Modular Design**: The adapter registry system ensures that new protocols can be integrated without modifying core contracts
+- **Infinite Composability**: Combine multiple adapters within a single vault to create complex, multi-protocol investment strategies
+
+The `AdapterRegistry` contract manages all adapters, while individual adapters implement the `IAdapter` interface, ensuring consistent interaction patterns across all DeFi integrations.
 
 ## Network
 

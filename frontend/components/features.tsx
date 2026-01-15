@@ -14,6 +14,7 @@ export default function Features() {
       name: "Safe & Secure",
       description: "Bank-grade security with smart contract audits and insurance coverage for your peace of mind.",
       cta: "Learn more",
+      href: "/docs/features",
       background: (
         <SecurityMarquee className={cn(
           "absolute top-10 right-0 w-full h-[1000px] [mask-image:linear-gradient(to_top,transparent_0%,transparent_60%,#000_80%,#000_100%)] [--duration:20s]"
@@ -26,6 +27,7 @@ export default function Features() {
       name: "Expert Management",
       description: "Professional strategies managed by verified market experts with proven track records.",
       cta: "Learn more",
+      href: "/docs/features",
       background: <img className="absolute -top-20 -right-20 opacity-60" />,
       className: "lg:col-start-1 lg:col-end-2 lg:row-start-1 lg:row-end-2",
     },
@@ -34,6 +36,7 @@ export default function Features() {
       name: "Transparent",
       description: "Full on-chain transparency with real-time reporting and complete audit trails.",
       cta: "Learn more",
+      href: "/docs/features",
       background: (
         <TransparencyTerminal className={cn(
           "absolute top-4 left-1/2 -translate-x-1/2 w-full max-w-[280px] scale-75",
@@ -48,6 +51,7 @@ export default function Features() {
       name: "Instant Withdrawal",
       description: "Withdraw your funds instantly with no lock-in periods or waiting times.",
       cta: "Learn more",
+      href: "/docs/features",
       background: (
         <AnimatedListDemo className={cn(
           "absolute top-4 right-2 h-[300px] w-full scale-75 border-none",
@@ -62,6 +66,7 @@ export default function Features() {
       name: "Advanced Analytics",
       description: "Comprehensive portfolio insights and performance tracking with detailed analytics dashboard.",
       cta: "Learn more",
+      href: "/docs/features",
       background: <img className="absolute -top-20 -right-20 opacity-60" />,
       className: "lg:col-start-3 lg:col-end-3 lg:row-start-3 lg:row-end-4",
     },
